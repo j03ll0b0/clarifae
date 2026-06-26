@@ -41,16 +41,24 @@
     $('enable-toggle').checked = !!s.enabled;
     setActiveMode(s.mode);
 
-    $('strength').value = s.strength; $('strength-val').textContent = s.strength;
-    $('atten_db').value = s.atten_db; $('atten_db-val').textContent = s.atten_db + ' dB';
-    $('vad').value = s.vad;           $('vad-val').textContent = s.vad;
+    $('in_enabled').checked = !!s.in_enabled;
+    $('out_enabled').checked = !!s.out_enabled;
+
+    $('strength').value = s.strength;         $('strength-val').textContent = s.strength;
+    $('out_strength').value = s.out_strength; $('out_strength-val').textContent = s.out_strength;
+    $('atten_db').value = s.atten_db;         $('atten_db-val').textContent = s.atten_db + ' dB';
+    $('vad').value = s.vad;                   $('vad-val').textContent = s.vad;
 
     $('highpass').checked = !!s.highpass;
     $('autogain').checked = !!s.autogain;
 
     var targets = (s.targets || '').split(',');
-    document.querySelectorAll('.chip').forEach(function (c) {
+    document.querySelectorAll('#chips-in .chip').forEach(function (c) {
       c.classList.toggle('active', targets.indexOf(c.dataset.target) !== -1);
+    });
+    var otargets = (s.out_targets || '').split(',');
+    document.querySelectorAll('#chips-out .chip').forEach(function (c) {
+      c.classList.toggle('active', otargets.indexOf(c.dataset.otarget) !== -1);
     });
   }
 
@@ -101,6 +109,8 @@
 
     var rows = [
       ['Enabled', bool(s.enabled)],
+      ['Mic cleanup', bool(s.in_enabled)],
+      ['Playback cleanup', bool(s.out_enabled)],
       ['Effect loaded', triState(s.effect_loaded)],
       ['audio_effects patched', bool(s.xml_patched)],
       ['Library (64-bit)', bool(s.lib64)],
@@ -145,6 +155,12 @@
       setKey('enabled', this.checked ? 1 : 0, this.checked ? 'Clarity on' : 'Clarity paused')
         .then(refreshStatus);
     });
+    $('in_enabled').addEventListener('change', function () {
+      setKey('in_enabled', this.checked ? 1 : 0, this.checked ? 'Mic cleanup on' : 'Mic cleanup off').then(refreshStatus);
+    });
+    $('out_enabled').addEventListener('change', function () {
+      setKey('out_enabled', this.checked ? 1 : 0, this.checked ? 'Playback cleanup on' : 'Playback cleanup off').then(refreshStatus);
+    });
 
     document.querySelectorAll('.mode-card').forEach(function (card) {
       card.addEventListener('click', function () {
@@ -154,7 +170,7 @@
       });
     });
 
-    [['strength', ''], ['atten_db', ' dB'], ['vad', '']].forEach(function (pair) {
+    [['strength', ''], ['out_strength', ''], ['atten_db', ' dB'], ['vad', '']].forEach(function (pair) {
       var id = pair[0], suffix = pair[1];
       var el = $(id);
       el.addEventListener('input', function () {
@@ -166,13 +182,24 @@
     $('highpass').addEventListener('change', function () { setKey('highpass', this.checked ? 1 : 0, 'Saved'); });
     $('autogain').addEventListener('change', function () { setKey('autogain', this.checked ? 1 : 0, 'Saved'); });
 
-    document.querySelectorAll('.chip').forEach(function (chip) {
+    // capture sources (input)
+    document.querySelectorAll('#chips-in .chip').forEach(function (chip) {
       chip.addEventListener('click', function () {
         chip.classList.toggle('active');
         var sel = [];
-        document.querySelectorAll('.chip.active').forEach(function (c) { sel.push(c.dataset.target); });
+        document.querySelectorAll('#chips-in .chip.active').forEach(function (c) { sel.push(c.dataset.target); });
         if (sel.length === 0) { chip.classList.add('active'); sel.push(chip.dataset.target); toast('Keep at least one source'); }
-        setKey('targets', sel.join(','), 'Sources updated (re-flash to fully apply)');
+        setKey('targets', sel.join(','), 'Capture sources updated (re-flash to fully apply)');
+      });
+    });
+
+    // playback streams (output) — zero selections is allowed (= output off via targets)
+    document.querySelectorAll('#chips-out .chip').forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        chip.classList.toggle('active');
+        var sel = [];
+        document.querySelectorAll('#chips-out .chip.active').forEach(function (c) { sel.push(c.dataset.otarget); });
+        setKey('out_targets', sel.join(','), 'Playback streams updated (re-flash to fully apply)');
       });
     });
 

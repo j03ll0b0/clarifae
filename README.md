@@ -1,16 +1,28 @@
 <div align="center">
   <img src="webroot/assets/logo.svg" alt="Clarifae" height="64" />
   <h3>Real-time AI audio clarity for rooted Android</h3>
-  <p>A Magisk / KernelSU / APatch module that cleans your microphone in real time
-  using open-source speech-enhancement models — configurable from a WebUI.</p>
+  <p>A Magisk / KernelSU / APatch module that cleans both your <b>microphone</b>
+  and the <b>audio you hear</b> in real time using open-source speech-enhancement
+  models — configurable from a WebUI.</p>
 </div>
 
 ---
 
-Clarifae installs a custom **Android audio pre-processing effect** (`libclarifae.so`)
-and registers it via `audio_effects.xml` so it attaches to your capture streams
-(microphone, calls/VoIP, camcorder, voice recognition). Captured audio is denoised
-on the fly by one of three engines, selectable as **clarity modes**.
+Clarifae installs one native effect library (`libclarifae.so`) that exposes **two
+descriptors**, registered via `audio_effects.xml`:
+
+- a **capture pre-processor** on input streams (microphone, calls/VoIP, camcorder,
+  voice recognition) — cleans *your* outgoing voice; and
+- a **playback post-processor** on output streams (media/music, calls, …) — cleans
+  the audio *you hear*.
+
+Each side can be toggled independently and is denoised on the fly by one of three
+engines, selectable as **clarity modes**.
+
+> **Note on output + music:** these are *speech-enhancement* models. On voice content
+> (calls, videos, podcasts) output cleanup clarifies nicely; on actual **music** it
+> treats instruments as noise and degrades them — use the separate *Playback strength*
+> slider (or turn output off) to taste.
 
 > Brand: primary `#435787`, secondary `#68aaf3`, font *Creative Caps*.
 
@@ -35,14 +47,16 @@ on the fly by one of three engines, selectable as **clarity modes**.
 | **3 · Maximum clarity** | [DeepFilterNet](https://github.com/Rikorose/DeepFilterNet) | Full-band 48 kHz deep filtering, highest quality | ⚠️ Experimental — needs `libdf` + model |
 
 Modes 2 and 3 are optional builds. If their runtime/models aren't present, Clarifae
-**transparently falls back to RNNoise** — it never silently breaks your mic.
+**transparently falls back to RNNoise** — it never silently breaks your audio.
 
 ## Features
 
-- System-wide mic noise suppression as a native AudioFlinger pre-processing effect.
+- **Both directions:** mic input *and* playback output cleanup, each toggleable, from
+  one native AudioFlinger effect (pre-processing + post-processing descriptors).
 - Three AI clarity modes with graceful fallback.
-- **Branded WebUI**: master toggle, mode picker, strength / max-suppression / voice-gate
-  sliders, high-pass & auto-gain toggles, capture-source selection, live engine status, logs.
+- **Branded WebUI**: master + per-side toggles, mode picker, separate mic/playback
+  strength, max-suppression / voice-gate sliders, high-pass & auto-gain, capture-source
+  and playback-stream selection, live engine status, logs.
 - Live, reboot-free settings via `persist.clarifae.*` properties (the effect re-reads
   on change).
 - `clarifae-ctl` CLI for scripting and debugging.
@@ -76,16 +90,15 @@ verification steps.
 ## How it works
 
 ```
- mic app ─▶ AudioRecord ─▶ AudioFlinger capture chain
-                               │  (audio_effects.xml: <preprocess> attaches clarifae_ns)
-                               ▼
-                         libclarifae.so  (effect.c)
+ INPUT   mic app ─▶ AudioRecord ─▶ capture chain  ─┐  <preprocess> → clarifae_ns
+                                                    ├─▶ libclarifae.so (effect.c)
+ OUTPUT  media/call ◀─ AudioTrack ◀─ playback mix ─┘  <postprocess> → clarifae_out
                                │  s16/float ⇄ float, live config from persist.clarifae.*
                                ▼
                   backend: rnnoise │ dtln │ deepfilternet
                                │  resample ⇄ engine rate, frame, enhance, wet/dry + atten cap
                                ▼
-                         cleaned audio ─▶ back to the app
+              cleaned audio ─▶ back to the app (input) / to the speaker (output)
 ```
 
 Configuration flows: **WebUI → `clarifae-ctl` → `config.conf` → `persist.clarifae.*` →
@@ -100,17 +113,22 @@ and is mirrored to system properties the effect reads:
 
 | Key / property `persist.clarifae.*` | Values | Default | Meaning |
 |---|---|---|---|
-| `enabled`  | `0` / `1` | `1` | Master on/off (bypass = passthrough) |
-| `mode`     | `1` / `2` / `3` | `1` | RNNoise / DTLN / DeepFilterNet |
-| `strength` | `0`–`100` | `70` | Wet/dry blend of the cleaned signal |
-| `atten_db` | `0`–`60` | `24` | Max suppression depth (protects tone) |
-| `vad`      | `0`–`100` | `50` | Voice-activity sensitivity (gate / auto-gain) |
-| `targets`  | csv of `mic,voice_comm,camcorder,voice_rec` | `mic,voice_comm` | Capture sources to attach to |
-| `highpass` | `0` / `1` | `1` | DC/rumble high-pass pre-filter |
-| `autogain` | `0` / `1` | `0` | Gentle make-up gain on speech |
-| `loglevel` | `0`–`3` | `1` | logcat verbosity (tag `Clarifae`) |
+| `enabled`      | `0` / `1` | `1` | Master on/off (bypass = passthrough) |
+| `in_enabled`   | `0` / `1` | `1` | Clean the **microphone** (input) |
+| `out_enabled`  | `0` / `1` | `1` | Clean **playback** (output) |
+| `mode`         | `1` / `2` / `3` | `1` | RNNoise / DTLN / DeepFilterNet |
+| `strength`     | `0`–`100` | `70` | Wet/dry blend for the **mic** |
+| `out_strength` | `0`–`100` | `60` | Wet/dry blend for **playback** (lower for music) |
+| `atten_db`     | `0`–`60` | `24` | Max suppression depth (protects tone) |
+| `vad`          | `0`–`100` | `50` | Voice-activity sensitivity (gate / auto-gain) |
+| `targets`      | csv of `mic,voice_comm,camcorder,voice_rec` | `mic,voice_comm` | Capture sources (input) |
+| `out_targets`  | csv of `music,voice_call,ring,alarm,notification,system` | `music,voice_call` | Playback streams (output) |
+| `highpass`     | `0` / `1` | `1` | DC/rumble high-pass pre-filter |
+| `autogain`     | `0` / `1` | `0` | Gentle make-up gain on speech |
+| `loglevel`     | `0`–`3` | `1` | logcat verbosity (tag `Clarifae`) |
 
-The Clarifae effect UUID is `c1a71fae-0001-4a5e-9b10-43578768aaf3` (type = AOSP noise-suppression).
+Effect UUIDs: input (pre-proc) `c1a71fae-0001-…` (type = AOSP noise-suppression);
+output (post-proc) `c1a71fae-0002-…` (custom Clarifae type).
 
 ## `clarifae-ctl` commands
 
@@ -134,9 +152,13 @@ clarifae-ctl version
   overlay. Some vendors use non-standard formats/locations; if patching fails the library is
   still installed and you can attach it manually (see
   [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)).
-- **Not every app gets cleaned.** Pre-processing effects apply per capture *audio source*.
-  Apps that open exotic sources, use their own DSP, or hold a raw/`unprocessed` source may
-  bypass it. Newly opened capture sessions pick up changes; some need a `restart-audio`.
+- **Not every app/stream gets cleaned.** Effects apply per *audio source* (input) and per
+  *stream type* (output). Apps using their own DSP, a raw/`unprocessed` source, direct/offload
+  output, or exotic routes may bypass it. New sessions pick up changes; some need a `restart-audio`.
+- **Output post-processing support varies by device** more than input pre-processing — some
+  ROMs ignore or restrict `<postprocess>` stream effects.
+- **Music will be degraded** if you enable output on the `music` stream — these are speech
+  models. Use *Playback strength* or disable playback cleanup for music.
 - **SELinux/vendor variance.** `persist.clarifae.*` live under `default_prop`; a defensive
   `sepolicy.rule` is included for stricter devices.
 - **DTLN/DeepFilterNet are experimental** and require extra runtimes/models; without them

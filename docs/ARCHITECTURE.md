@@ -9,39 +9,44 @@ standard AudioFlinger capture-effect mechanism that already exists for AEC/NS/AG
 ## Data flow
 
 ```
- ┌────────────┐   AudioRecord    ┌───────────────────────────┐
- │ recording  │ ───────────────▶ │ AudioFlinger capture chain │
- │ app / call │                  │  reads audio_effects.xml   │
- └────────────┘                  │  <preprocess> for the      │
-        ▲                        │  session's audio source    │
-        │ cleaned PCM            └─────────────┬─────────────┘
-        │                                      │ attaches clarifae_ns (our UUID)
-        │                                      ▼
-        │                         ┌──────────────────────────┐
-        │                         │  libclarifae.so           │
-        │                         │  effect.c (ABI: AELI sym) │
-        │                         │   • SET_CONFIG: rate/ch/fmt
-        │                         │   • process(): s16/float⇄f │
-        │                         │   • live cfg via props     │
-        │                         └─────────────┬────────────┘
-        │                                        │ float [-32768,32767], interleaved
-        │                                        ▼
-        │                         ┌──────────────────────────┐
-        │                         │  backend (clarifae_backend_t)
-        │                         │  rnnoise │ dtln │ deepfilternet
-        │                         │   resample ⇄ engine rate   │
-        │                         │   frame, enhance,          │
-        │                         │   wet/dry mix + atten cap  │
-        └─────────────────────────┴──────────────────────────┘
+ INPUT path (clean the mic):
+   recording app ─ AudioRecord ─▶ capture chain ─ <preprocess> ─▶ clarifae_ns ─┐
+        ▲ cleaned mic PCM ──────────────────────────────────────────────────── ┘
+
+ OUTPUT path (clean what you hear):
+   media/call ◀─ AudioTrack ◀─ playback mix ─ <postprocess> ─▶ clarifae_out ──┐
+        speaker / headset ◀──────────────── cleaned PCM ──────────────────────┘
+
+ Both descriptors live in ONE library and share the DSP:
+        ┌──────────────────────────┐
+        │  libclarifae.so           │
+        │  effect.c (ABI: AELI sym) │  kind = INPUT | OUTPUT (set from UUID)
+        │   • SET_CONFIG: rate/ch/fmt
+        │   • process(): s16/float⇄f │  gated by in_enabled / out_enabled
+        │   • live cfg via props     │  strength (in) / out_strength (out)
+        └─────────────┬────────────┘
+                       │ float [-32768,32767], interleaved
+                       ▼
+        ┌──────────────────────────┐
+        │  backend (clarifae_backend_t)
+        │  rnnoise │ dtln │ deepfilternet
+        │   resample ⇄ engine rate, frame,
+        │   enhance, wet/dry mix + atten cap
+        └──────────────────────────┘
 ```
 
 ## The Android effect ABI (`native/effect.c`, `native/include/audio_effect.h`)
 
 - The library exports `audio_effect_library_t AUDIO_EFFECT_LIBRARY_INFO_SYM` — the symbol
   **`AELI`** — which AudioFlinger's effect loader looks up via `dlsym`.
-- It advertises a descriptor with **type = FX_IID_NS** (`58b4b260-…`, AOSP noise-suppression
-  pre-processing) and our unique **impl UUID `c1a71fae-0001-4a5e-9b10-43578768aaf3`**, with
-  flags `EFFECT_FLAG_TYPE_PRE_PROC | EFFECT_FLAG_INSERT_FIRST`.
+- It advertises **two descriptors** from the one library, dispatched by UUID in
+  `create_effect`/`get_descriptor`:
+  - **INPUT** (capture pre-proc): type = FX_IID_NS (`58b4b260-…`), uuid
+    `c1a71fae-0001-…`, flags `EFFECT_FLAG_TYPE_PRE_PROC | INSERT_FIRST`.
+  - **OUTPUT** (playback post-proc): custom type `c1a71fae-00c0-…`, uuid
+    `c1a71fae-0002-…`, flags `EFFECT_FLAG_TYPE_POST_PROC | INSERT_LAST`.
+  Each instance records its `kind` from the UUID; `process()` is identical DSP, gated by
+  `in_enabled`/`out_enabled` and using `strength`/`out_strength` respectively.
 - Per-instance state begins with `const effect_interface_s* itfe;` so the `effect_handle_t`
   AudioFlinger holds aliases the context pointer.
 - `command()` handles `SET_CONFIG` (sample rate / channel mask / format / access mode),
@@ -104,9 +109,13 @@ At install, `patch_audio_effects` locates the device file (`/vendor/etc`, `/odm/
 matching path (Magisk magic-mounts `system/vendor → /vendor`, etc.), and idempotently injects:
 
 - `<library name="clarifae" path="libclarifae.so"/>` in `<libraries>`,
-- `<effect name="clarifae_ns" library="clarifae" uuid="c1a71fae-…"/>` in `<effects>`,
-- `<apply effect="clarifae_ns"/>` into each target `<stream type="…">` under `<preprocess>`
-  (appending to an existing stream, or creating it / the whole `<preprocess>` block as needed).
+- **two** effects in `<effects>`:
+  - `<effect name="clarifae_ns"  library="clarifae" uuid="c1a71fae-0001-…"/>` (input)
+  - `<effect name="clarifae_out" library="clarifae" uuid="c1a71fae-0002-…"/>` (output)
+- `<apply effect="clarifae_ns"/>` into each capture `<stream type="…">` under `<preprocess>`
+  (from `targets`), and `<apply effect="clarifae_out"/>` into each playback `<stream type="…">`
+  under `<postprocess>` (from `out_targets`). In both blocks the injector appends to an existing
+  matching stream, or creates the stream / the whole `<preprocess>`/`<postprocess>` block as needed.
 
 Because it's an overlay, the original file is never modified — removing the module reverts it.
 

@@ -9,21 +9,27 @@ LOGFILE="$CLARIFAE_DIR/clarifae.log"
 PATCH_MARK="$CLARIFAE_DIR/audio_effects.patched"   # holds the patched file path
 BACKUP="$CLARIFAE_DIR/audio_effects.backup"
 
-CLARIFAE_VERSION="v1.0.0"
-EFFECT_UUID="c1a71fae-0001-4a5e-9b10-43578768aaf3"
+CLARIFAE_VERSION="v1.1.0"
+EFFECT_UUID="c1a71fae-0001-4a5e-9b10-43578768aaf3"       # input  (capture pre-proc)
+EFFECT_UUID_OUT="c1a71fae-0002-4a5e-9b10-43578768aaf3"   # output (playback post-proc)
 LIB_NAME="clarifae"
 EFFECT_NAME="clarifae_ns"
+OUT_EFFECT_NAME="clarifae_out"
 
-CLARIFAE_KEYS="enabled mode strength atten_db vad targets highpass autogain loglevel"
+CLARIFAE_KEYS="enabled in_enabled out_enabled mode strength out_strength atten_db vad targets out_targets highpass autogain loglevel"
 
 clarifae_defaults() {
   cat <<'EOF'
 enabled=1
+in_enabled=1
+out_enabled=1
 mode=1
 strength=70
+out_strength=60
 atten_db=24
 vad=50
 targets=mic,voice_comm
+out_targets=music,voice_call
 highpass=1
 autogain=0
 loglevel=1
@@ -108,7 +114,7 @@ overlay_path_for() {
   esac
 }
 
-# our csv target names -> AOSP audio_source stream types
+# our csv target names -> AOSP audio_source stream types (capture / <preprocess>)
 map_targets() {
   _out=""
   _oifs="$IFS"; IFS=,
@@ -126,46 +132,69 @@ map_targets() {
   echo "$_out"
 }
 
+# our csv out target names -> AOSP audio_stream_type names (playback / <postprocess>)
+map_out_targets() {
+  _out=""
+  _oifs="$IFS"; IFS=,
+  for _t in $1; do
+    case "$_t" in
+      media|music)       _s=music ;;
+      calls|voice_call)  _s=voice_call ;;
+      ring)              _s=ring ;;
+      alarm)             _s=alarm ;;
+      notif|notification) _s=notification ;;
+      system)            _s=system ;;
+      *)                 _s="" ;;
+    esac
+    [ -n "$_s" ] && _out="$_out $_s"
+  done
+  IFS="$_oifs"
+  echo "$_out"
+}
+
 _patch_xml_file() {
-  _src="$1"; _dst="$2"; _streams="$3"
-  awk -v uuid="$EFFECT_UUID" -v lib="$LIB_NAME" -v eff="$EFFECT_NAME" -v streams="$_streams" '
+  _src="$1"; _dst="$2"; _in_streams="$3"; _out_streams="$4"
+  awk -v uuid_in="$EFFECT_UUID" -v uuid_out="$EFFECT_UUID_OUT" -v lib="$LIB_NAME" \
+      -v eff_in="$EFFECT_NAME" -v eff_out="$OUT_EFFECT_NAME" \
+      -v in_streams="$_in_streams" -v out_streams="$_out_streams" '
     BEGIN {
-      lib_done=0; eff_done=0; pre_done=0; in_pre=0; cur="";
-      n=split(streams, want, " ");
-      for (i=1;i<=n;i++) if (want[i]!="") handled[want[i]]=0;
+      lib_done=0; eff_done=0; pre_done=0; post_done=0; section=""; cur="";
+      ni=split(in_streams,  wi, " "); for (i=1;i<=ni;i++) if (wi[i]!="") hin[wi[i]]=0;
+      no=split(out_streams, wo, " "); for (i=1;i<=no;i++) if (wo[i]!="") hout[wo[i]]=0;
     }
-    function emit_one(t) {
+    function emit_stream(t, e) {
       print "        <stream type=\"" t "\">";
-      print "            <apply effect=\"" eff "\"/>";
+      print "            <apply effect=\"" e "\"/>";
       print "        </stream>";
     }
-    function emit_unhandled(   i) {
-      for (i=1;i<=n;i++) if (want[i]!="" && handled[want[i]]==0) { emit_one(want[i]); handled[want[i]]=1 }
-    }
+    function emit_pre_unhandled(   i)  { for (i=1;i<=ni;i++) if (wi[i]!="" && hin[wi[i]]==0)  { emit_stream(wi[i], eff_in);  hin[wi[i]]=1 } }
+    function emit_post_unhandled(  i)  { for (i=1;i<=no;i++) if (wo[i]!="" && hout[wo[i]]==0) { emit_stream(wo[i], eff_out); hout[wo[i]]=1 } }
     /<\/libraries>/ && !lib_done {
       print "        <library name=\"" lib "\" path=\"libclarifae.so\"/>"; lib_done=1
     }
     /<\/effects>/ && !eff_done {
-      print "        <effect name=\"" eff "\" library=\"" lib "\" uuid=\"" uuid "\"/>"; eff_done=1
+      print "        <effect name=\"" eff_in  "\" library=\"" lib "\" uuid=\"" uuid_in  "\"/>";
+      print "        <effect name=\"" eff_out "\" library=\"" lib "\" uuid=\"" uuid_out "\"/>";
+      eff_done=1
     }
-    /<preprocess>/ { in_pre=1 }
-    # track the current capture stream type inside <preprocess>
+    /<preprocess>/  { section="pre" }
+    /<postprocess>/ { section="post" }
     {
-      if (in_pre && /<stream/ && match($0, /type="[^"]*"/))
+      if (section!="" && /<stream/ && match($0, /type="[^"]*"/))
         cur = substr($0, RSTART + 6, RLENGTH - 7);
     }
-    # append our apply into an existing matching stream, before its close tag
-    /<\/stream>/ && in_pre {
-      if (cur != "" && (cur in handled) && handled[cur]==0) {
-        print "            <apply effect=\"" eff "\"/>"; handled[cur]=1;
+    /<\/stream>/ {
+      if (cur != "") {
+        if (section=="pre"  && (cur in hin)  && hin[cur]==0)  { print "            <apply effect=\"" eff_in  "\"/>"; hin[cur]=1 }
+        if (section=="post" && (cur in hout) && hout[cur]==0) { print "            <apply effect=\"" eff_out "\"/>"; hout[cur]=1 }
       }
       cur="";
     }
-    # add any target streams the device did not already define
-    /<\/preprocess>/ && in_pre && !pre_done { emit_unhandled(); pre_done=1; in_pre=0 }
-    # no <preprocess> block at all -> create one
-    /<\/audio_effects_conf>/ && !pre_done {
-      print "    <preprocess>"; emit_unhandled(); print "    </preprocess>"; pre_done=1
+    /<\/preprocess>/  { emit_pre_unhandled();  pre_done=1;  section="" }
+    /<\/postprocess>/ { emit_post_unhandled(); post_done=1; section="" }
+    /<\/audio_effects_conf>/ {
+      if (!pre_done)  { print "    <preprocess>";  emit_pre_unhandled();  print "    </preprocess>";  pre_done=1 }
+      if (!post_done) { print "    <postprocess>"; emit_post_unhandled(); print "    </postprocess>"; post_done=1 }
     }
     { print }
   ' "$_src" > "$_dst" 2>/dev/null
@@ -173,15 +202,25 @@ _patch_xml_file() {
 }
 
 _patch_conf_file() {
-  _src="$1"; _dst="$2"; _streams="$3"
-  awk -v uuid="$EFFECT_UUID" -v lib="$LIB_NAME" -v eff="$EFFECT_NAME" -v streams="$_streams" '
+  _src="$1"; _dst="$2"; _in_streams="$3"; _out_streams="$4"
+  awk -v uuid_in="$EFFECT_UUID" -v uuid_out="$EFFECT_UUID_OUT" -v lib="$LIB_NAME" \
+      -v eff_in="$EFFECT_NAME" -v eff_out="$OUT_EFFECT_NAME" \
+      -v in_streams="$_in_streams" -v out_streams="$_out_streams" '
     BEGIN { lib_done=0; eff_done=0 }
     { print }
     /libraries[ \t]*\{/ && !lib_done { print "  " lib " { path libclarifae.so }"; lib_done=1 }
-    /effects[ \t]*\{/   && !eff_done { print "  " eff " { library " lib " uuid " uuid " }"; eff_done=1 }
+    /effects[ \t]*\{/   && !eff_done {
+      print "  " eff_in  " { library " lib " uuid " uuid_in  " }";
+      print "  " eff_out " { library " lib " uuid " uuid_out " }";
+      eff_done=1
+    }
     /pre_processing[ \t]*\{/ {
-      n=split(streams, arr, " ");
-      for (i=1;i<=n;i++) if (arr[i]!="") print "  " arr[i] " { " eff " {} }";
+      n=split(in_streams, ai, " ");
+      for (i=1;i<=n;i++) if (ai[i]!="") print "  " ai[i] " { " eff_in " {} }";
+    }
+    /post_processing[ \t]*\{/ {
+      n=split(out_streams, ao, " ");
+      for (i=1;i<=n;i++) if (ao[i]!="") print "  " ao[i] " { " eff_out " {} }";
     }
   ' "$_src" > "$_dst" 2>/dev/null
   [ -s "$_dst" ] && grep -q "clarifae" "$_dst"
@@ -192,6 +231,7 @@ patch_audio_effects() {
   _mp="$1"
   _real="$(find_audio_effects_file)" || { clarifae_log "audio_effects file not found"; return 1; }
   _streams="$(map_targets "$(conf_get targets)")"
+  _out_streams="$(map_out_targets "$(conf_get out_targets)")"
   _overlay="$(overlay_path_for "$_mp" "$_real")"
 
   if grep -q "clarifae" "$_real" 2>/dev/null; then
@@ -204,15 +244,15 @@ patch_audio_effects() {
   cp -f "$_real" "$BACKUP" 2>/dev/null
 
   case "$_real" in
-    *.xml)  _patch_xml_file  "$_real" "$_overlay" "$_streams" ;;
-    *.conf) _patch_conf_file "$_real" "$_overlay" "$_streams" ;;
+    *.xml)  _patch_xml_file  "$_real" "$_overlay" "$_streams" "$_out_streams" ;;
+    *.conf) _patch_conf_file "$_real" "$_overlay" "$_streams" "$_out_streams" ;;
     *) return 1 ;;
   esac
 
   if [ $? -eq 0 ]; then
     chmod 0644 "$_overlay" 2>/dev/null
     echo "$_overlay" > "$PATCH_MARK"
-    clarifae_log "patched audio_effects: $_real -> $_overlay (streams:$_streams)"
+    clarifae_log "patched audio_effects: $_real -> $_overlay (in:$_streams | out:$_out_streams)"
     return 0
   fi
   clarifae_log "FAILED to patch $_real"

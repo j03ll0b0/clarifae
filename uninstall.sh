@@ -13,7 +13,7 @@ CLARIFAE_DIR=/data/adb/clarifae
 rm -rf "$CLARIFAE_DIR"
 
 # clear persisted properties
-for k in enabled mode strength atten_db vad targets highpass autogain loglevel; do
+for k in enabled in_enabled out_enabled mode strength out_strength atten_db vad targets out_targets highpass autogain loglevel; do
   if command -v resetprop >/dev/null 2>&1; then
     resetprop --delete "persist.clarifae.$k" 2>/dev/null
   fi

@@ -1,15 +1,20 @@
 /*
- * effect.c — Clarifae Android pre-processing effect.
+ * effect.c — Clarifae Android audio effect (capture + playback).
  *
- * Implements the AOSP effect ABI: it exports the AUDIO_EFFECT_LIBRARY_INFO_SYM
- * (symbol "AELI") so AudioFlinger can load libclarifae.so, advertises a
- * noise-suppression pre-processing descriptor, and on each process() pass hands
- * the captured PCM to the selected backend (rnnoise / dtln / deepfilternet).
+ * One library (symbol "AELI") exposes TWO descriptors so the same DSP cleans
+ * audio in both directions:
+ *   - INPUT  : a noise-suppression PRE-processing effect on capture streams
+ *              (clean your microphone). UUID c1a71fae-0001-...
+ *   - OUTPUT : a custom POST-processing effect on playback streams
+ *              (clean what you hear). UUID c1a71fae-0002-...
+ * AudioFlinger picks one via the UUID in audio_effects.xml (<preprocess> vs
+ * <postprocess>); we set the instance "kind" from that UUID.
  *
- * Configuration is read live from persist.clarifae.* (see config.c); changes
- * made from the WebUI apply to the next process() pass without a reboot. The
- * host enable/disable plus persist.clarifae.enabled together gate processing;
- * when bypassed the input is copied through untouched.
+ * Each pass hands PCM to the selected backend (rnnoise / dtln / deepfilternet).
+ * Config is read live from persist.clarifae.* (see config.c) — changes from the
+ * WebUI apply on the next buffer without a reboot. Gating is per side:
+ * master `enabled` AND (`in_enabled` | `out_enabled`); strength is `strength`
+ * for input and `out_strength` for output. When bypassed, audio passes through.
  */
 #include "audio_effect.h"
 #include "clarifae_uuid.h"
@@ -22,9 +27,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define CLF_KIND_INPUT  0   /* capture pre-processing (clean the microphone) */
+#define CLF_KIND_OUTPUT 1   /* playback post-processing (clean what you hear) */
+
 typedef struct {
     const struct effect_interface_s* itfe;  /* MUST be first: handle aliases this */
     effect_descriptor_t desc;
+    int      kind;           /* CLF_KIND_INPUT | CLF_KIND_OUTPUT */
 
     int      host_enabled;   /* EFFECT_CMD_ENABLE/DISABLE */
     int      configured;
@@ -43,24 +52,40 @@ typedef struct {
     size_t   fbuf_cap;       /* capacity in floats */
 } clarifae_ctx_t;
 
-/* ---- descriptor ---- */
-static const effect_uuid_t kTypeNs = CLARIFAE_TYPE_NS_UUID;
-static const effect_uuid_t kImpl   = CLARIFAE_IMPL_UUID;
-
-static void fill_descriptor(effect_descriptor_t* d) {
-    memset(d, 0, sizeof(*d));
-    d->type = kTypeNs;
-    d->uuid = kImpl;
-    d->apiVersion = EFFECT_CONTROL_API_VERSION;
-    d->flags = EFFECT_FLAG_TYPE_PRE_PROC | EFFECT_FLAG_INSERT_FIRST;
-    d->cpuLoad = 20;       /* ~2 MIPS hint */
-    d->memoryUsage = 512;  /* KB hint */
-    strncpy(d->name, "Clarifae NS", EFFECT_STRING_LEN - 1);
-    strncpy(d->implementor, "Clarifae Project", EFFECT_STRING_LEN - 1);
-}
+/* ---- descriptors ---- */
+static const effect_uuid_t kTypeNs   = CLARIFAE_TYPE_NS_UUID;     /* input type */
+static const effect_uuid_t kImpl     = CLARIFAE_IMPL_UUID;        /* input impl */
+static const effect_uuid_t kTypeOut  = CLARIFAE_OUT_TYPE_UUID;    /* output type */
+static const effect_uuid_t kImplOut  = CLARIFAE_OUT_IMPL_UUID;    /* output impl */
 
 static int uuid_eq(const effect_uuid_t* a, const effect_uuid_t* b) {
     return memcmp(a, b, sizeof(effect_uuid_t)) == 0;
+}
+
+/* -1 = not ours, else CLF_KIND_* */
+static int kind_for_uuid(const effect_uuid_t* u) {
+    if (uuid_eq(u, &kImpl)    || uuid_eq(u, &kTypeNs))  return CLF_KIND_INPUT;
+    if (uuid_eq(u, &kImplOut) || uuid_eq(u, &kTypeOut)) return CLF_KIND_OUTPUT;
+    return -1;
+}
+
+static void fill_descriptor(effect_descriptor_t* d, int kind) {
+    memset(d, 0, sizeof(*d));
+    d->apiVersion = EFFECT_CONTROL_API_VERSION;
+    d->cpuLoad = 20;       /* ~2 MIPS hint */
+    d->memoryUsage = 512;  /* KB hint */
+    strncpy(d->implementor, "Clarifae Project", EFFECT_STRING_LEN - 1);
+    if (kind == CLF_KIND_OUTPUT) {
+        d->type  = kTypeOut;
+        d->uuid  = kImplOut;
+        d->flags = EFFECT_FLAG_TYPE_POST_PROC | EFFECT_FLAG_INSERT_LAST;
+        strncpy(d->name, "Clarifae Out", EFFECT_STRING_LEN - 1);
+    } else {
+        d->type  = kTypeNs;
+        d->uuid  = kImpl;
+        d->flags = EFFECT_FLAG_TYPE_PRE_PROC | EFFECT_FLAG_INSERT_FIRST;
+        strncpy(d->name, "Clarifae NS", EFFECT_STRING_LEN - 1);
+    }
 }
 
 /* ---- backend lifecycle ---- */
@@ -72,8 +97,10 @@ static void backend_close(clarifae_ctx_t* c) {
 
 static void backend_apply_params(clarifae_ctx_t* c) {
     if (c->backend && c->bstate) {
+        int strength = (c->kind == CLF_KIND_OUTPUT) ? c->cfg.out_strength
+                                                     : c->cfg.strength;
         c->backend->set_params(c->bstate,
-                               (float)c->cfg.strength / 100.0f,
+                               (float)strength / 100.0f,
                                (float)c->cfg.atten_db,
                                (float)c->cfg.vad / 100.0f,
                                c->cfg.highpass, c->cfg.autogain);
@@ -138,7 +165,10 @@ static int32_t ce_process(effect_handle_t self,
         }
     }
 
-    int bypass = (!c->cfg.enabled) || (!c->configured) || (!c->backend) || (!c->bstate);
+    int side_enabled = (c->kind == CLF_KIND_OUTPUT) ? c->cfg.out_enabled
+                                                     : c->cfg.in_enabled;
+    int bypass = (!c->cfg.enabled) || (!side_enabled) ||
+                 (!c->configured) || (!c->backend) || (!c->bstate);
 
     /* ---- bypass: copy input to output (respecting accumulate) ---- */
     if (bypass) {
@@ -311,17 +341,20 @@ static int32_t lib_create(const effect_uuid_t* uuid, int32_t sessionId,
                           int32_t ioId, effect_handle_t* pHandle) {
     (void)sessionId; (void)ioId;
     if (!pHandle || !uuid) return -EINVAL;
-    if (!uuid_eq(uuid, &kImpl) && !uuid_eq(uuid, &kTypeNs)) return -EINVAL;
+    int kind = kind_for_uuid(uuid);
+    if (kind < 0) return -EINVAL;
 
     clarifae_ctx_t* c = (clarifae_ctx_t*)calloc(1, sizeof(*c));
     if (!c) return -ENOMEM;
     c->itfe = &kInterface;
-    fill_descriptor(&c->desc);
+    c->kind = kind;
+    fill_descriptor(&c->desc, kind);
     clarifae_config_load(&c->cfg);
     c->cur_mode = c->cfg.mode;
 
     *pHandle = (effect_handle_t)c;
-    CLARIFAE_LOGI("effect created (session %d)", sessionId);
+    CLARIFAE_LOGI("effect created: %s (session %d)",
+                  kind == CLF_KIND_OUTPUT ? "output" : "input", sessionId);
     return 0;
 }
 
@@ -337,8 +370,9 @@ static int32_t lib_release(effect_handle_t handle) {
 static int32_t lib_get_descriptor(const effect_uuid_t* uuid,
                                   effect_descriptor_t* d) {
     if (!uuid || !d) return -EINVAL;
-    if (!uuid_eq(uuid, &kImpl) && !uuid_eq(uuid, &kTypeNs)) return -EINVAL;
-    fill_descriptor(d);
+    int kind = kind_for_uuid(uuid);
+    if (kind < 0) return -EINVAL;
+    fill_descriptor(d, kind);
     return 0;
 }
 

@@ -13,12 +13,12 @@ jbool() { [ "$1" = "1" ] && echo true || echo false; }
 validate() {
   k="$1"; v="$2"
   case "$k" in
-    enabled|highpass|autogain) case "$v" in 0|1) return 0;; *) return 1;; esac ;;
+    enabled|in_enabled|out_enabled|highpass|autogain) case "$v" in 0|1) return 0;; *) return 1;; esac ;;
     mode)     case "$v" in 1|2|3) return 0;; *) return 1;; esac ;;
     loglevel) case "$v" in 0|1|2|3) return 0;; *) return 1;; esac ;;
-    strength|vad) { [ "$v" -ge 0 ] && [ "$v" -le 100 ]; } 2>/dev/null ;;
+    strength|out_strength|vad) { [ "$v" -ge 0 ] && [ "$v" -le 100 ]; } 2>/dev/null ;;
     atten_db)     { [ "$v" -ge 0 ] && [ "$v" -le 60  ]; } 2>/dev/null ;;
-    targets)  return 0 ;;
+    targets|out_targets)  return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -37,13 +37,17 @@ cmd_set() {
 cmd_get_json() {
   conf_init
   printf '{'
-  printf '"enabled":%s,'   "$(jbool "$(conf_get enabled)")"
-  printf '"mode":%s,'      "$(conf_get mode)"
+  printf '"enabled":%s,'     "$(jbool "$(conf_get enabled)")"
+  printf '"in_enabled":%s,'  "$(jbool "$(conf_get in_enabled)")"
+  printf '"out_enabled":%s,' "$(jbool "$(conf_get out_enabled)")"
+  printf '"mode":%s,'        "$(conf_get mode)"
   printf '"mode_name":"%s",' "$(mode_name "$(conf_get mode)")"
-  printf '"strength":%s,'  "$(conf_get strength)"
+  printf '"strength":%s,'     "$(conf_get strength)"
+  printf '"out_strength":%s,' "$(conf_get out_strength)"
   printf '"atten_db":%s,'  "$(conf_get atten_db)"
   printf '"vad":%s,'       "$(conf_get vad)"
-  printf '"targets":"%s",' "$(conf_get targets)"
+  printf '"targets":"%s",'     "$(conf_get targets)"
+  printf '"out_targets":"%s",' "$(conf_get out_targets)"
   printf '"highpass":%s,'  "$(jbool "$(conf_get highpass)")"
   printf '"autogain":%s,'  "$(jbool "$(conf_get autogain)")"
   printf '"loglevel":%s'   "$(conf_get loglevel)"
@@ -63,9 +67,10 @@ cmd_status_json() {
   load=0;  dumpsys media.audio_flinger 2>/dev/null | grep -qi clarifae && load=1
   printf '{'
   printf '"enabled":%s,'    "$(jbool "$(conf_get enabled)")"
+  printf '"in_enabled":%s,"out_enabled":%s,' "$(jbool "$(conf_get in_enabled)")" "$(jbool "$(conf_get out_enabled)")"
   printf '"mode":%s,"mode_name":"%s",' "$(conf_get mode)" "$(mode_name "$(conf_get mode)")"
-  printf '"strength":%s,"atten_db":%s,"vad":%s,' "$(conf_get strength)" "$(conf_get atten_db)" "$(conf_get vad)"
-  printf '"targets":"%s",' "$(conf_get targets)"
+  printf '"strength":%s,"out_strength":%s,"atten_db":%s,"vad":%s,' "$(conf_get strength)" "$(conf_get out_strength)" "$(conf_get atten_db)" "$(conf_get vad)"
+  printf '"targets":"%s","out_targets":"%s",' "$(conf_get targets)" "$(conf_get out_targets)"
   printf '"highpass":%s,"autogain":%s,"loglevel":%s,' \
          "$(jbool "$(conf_get highpass)")" "$(jbool "$(conf_get autogain)")" "$(conf_get loglevel)"
   printf '"lib32":%s,"lib64":%s,"xml_patched":%s,' "$(jbool "$lib32")" "$(jbool "$lib64")" "$(jbool "$xml")"
@@ -78,10 +83,11 @@ cmd_status_json() {
 cmd_status() {
   conf_init
   echo "Clarifae $CLARIFAE_VERSION"
-  echo "  enabled : $(conf_get enabled)"
+  echo "  enabled : $(conf_get enabled)  (mic:$(conf_get in_enabled) playback:$(conf_get out_enabled))"
   echo "  mode    : $(conf_get mode) ($(mode_name "$(conf_get mode)"))"
-  echo "  strength: $(conf_get strength)  atten_db: $(conf_get atten_db)  vad: $(conf_get vad)"
-  echo "  targets : $(conf_get targets)"
+  echo "  strength: in $(conf_get strength) / out $(conf_get out_strength)   atten_db: $(conf_get atten_db)  vad: $(conf_get vad)"
+  echo "  in  src : $(conf_get targets)"
+  echo "  out src : $(conf_get out_targets)"
   echo "  hp/agc  : $(conf_get highpass)/$(conf_get autogain)"
   have_lib lib64 && echo "  lib64   : installed" || echo "  lib64   : missing"
   have_lib lib   && echo "  lib32   : installed" || echo "  lib32   : (not installed)"
