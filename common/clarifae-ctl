@@ -23,7 +23,15 @@ validate() {
   esac
 }
 
-have_lib() { [ -f "/system/$1/soundfx/libclarifae.so" ] || [ -f "/vendor/$1/soundfx/libclarifae.so" ]; }
+# $1 = lib | lib64. Check the mounted system/vendor overlays AND the module's
+# own staging dir — the WebUI's exec mount namespace may not have the systemless
+# overlay applied, so /system/... can read as absent even though audioserver
+# loads it. ${MODULE_DIR:-...} guards against an old functions.sh without it.
+have_lib() {
+  [ -f "/system/$1/soundfx/libclarifae.so" ] && return 0
+  [ -f "/vendor/$1/soundfx/libclarifae.so" ] && return 0
+  [ -f "${MODULE_DIR:-/data/adb/modules/clarifae}/system/$1/soundfx/libclarifae.so" ]
+}
 
 cmd_set() {
   k="$1"; v="$2"

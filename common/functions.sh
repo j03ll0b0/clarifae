@@ -8,8 +8,9 @@ CONFIG="$CLARIFAE_DIR/config.conf"
 LOGFILE="$CLARIFAE_DIR/clarifae.log"
 PATCH_MARK="$CLARIFAE_DIR/audio_effects.patched"   # holds the patched file path
 BACKUP="$CLARIFAE_DIR/audio_effects.backup"
+MODULE_DIR=/data/adb/modules/clarifae              # always present post-boot, mount-namespace independent
 
-CLARIFAE_VERSION="v1.1.0"
+CLARIFAE_VERSION="v1.1.2"
 EFFECT_UUID="c1a71fae-0001-4a5e-9b10-43578768aaf3"       # input  (capture pre-proc)
 EFFECT_UUID_OUT="c1a71fae-0002-4a5e-9b10-43578768aaf3"   # output (playback post-proc)
 LIB_NAME="clarifae"
@@ -261,5 +262,10 @@ patch_audio_effects() {
 
 is_audio_effects_patched() {
   _f="$(find_audio_effects_file)" || return 1
-  grep -q "clarifae" "$_f" 2>/dev/null
+  # Mounted (real) location — only reflects the patch where the systemless
+  # overlay is applied. The WebUI's exec namespace may not see it.
+  grep -q "clarifae" "$_f" 2>/dev/null && return 0
+  # Namespace-independent fallback: the staged overlay in the module dir.
+  _ov="$(overlay_path_for "$MODULE_DIR" "$_f")"
+  [ -f "$_ov" ] && grep -q "clarifae" "$_ov" 2>/dev/null
 }

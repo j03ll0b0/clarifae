@@ -42,9 +42,13 @@ conf_init
 cp -f "$MODPATH/common/functions.sh" "$CLARIFAE_DIR/functions.sh"
 ui_print "- Config: $CONFIG"
 
-# --- CLI on PATH ---
+# --- CLI: on PATH (system/bin, post-reboot) + always-present data-dir copy ---
+# The WebUI calls the data-dir copy by absolute path, so toggles work even
+# before a reboot and regardless of whether the system overlay is on PATH.
 mkdir -p "$MODPATH/system/bin"
 cp -f "$MODPATH/common/clarifae-ctl" "$MODPATH/system/bin/clarifae-ctl"
+cp -f "$MODPATH/common/clarifae-ctl" "$CLARIFAE_DIR/clarifae-ctl"
+chmod 0755 "$CLARIFAE_DIR/clarifae-ctl"
 
 # --- copy any bundled optional models to /data ---
 [ -d "$MODPATH/models" ] && cp -rf "$MODPATH/models/." "$CLARIFAE_DIR/models/" 2>/dev/null

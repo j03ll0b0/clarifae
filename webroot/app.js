@@ -7,7 +7,18 @@
   var setTimers = {};
   var refreshTimer = null;
 
-  function ctl(args) { return KSU.exec('clarifae-ctl ' + args); }
+  /*
+   * Resolve clarifae-ctl by absolute path rather than trusting the WebUI shell's
+   * PATH. The systemless /system/bin overlay isn't reliably on PATH in every
+   * host's exec namespace (and isn't mounted at all until a reboot), so prefer
+   * the always-present copies in the data dir / module dir, then fall back to
+   * PATH. Avoids "clarifae-ctl: inaccessible or not found".
+   */
+  var CTL_RESOLVE =
+    'C=/data/adb/clarifae/clarifae-ctl; ' +
+    '[ -x "$C" ] || C=/data/adb/modules/clarifae/system/bin/clarifae-ctl; ' +
+    '[ -x "$C" ] || C=clarifae-ctl; ';
+  function ctl(args) { return KSU.exec(CTL_RESOLVE + '"$C" ' + args); }
 
   function toast(msg) { KSU.toast(msg); showToast(msg); }
   function showToast(msg) {
