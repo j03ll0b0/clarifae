@@ -1,0 +1,25 @@
+name: Build Clarifae with DTLN and DeepFilterNet
+on:
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Android NDK
+        uses: android-actions/setup-android@v3
+      - name: Download models (DTLN .tflite, DeepFilterNet df)
+        run: |
+          mkdir -p models/dtln models/df
+          # Place model_1.tflite, model_2.tflite in models/dtln/
+          # Place DeepFilterNet files in models/df/
+      - name: Build
+        env:
+          ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk
+          CLARIFAE_WITH_DTLN: ON
+          CLARIFAE_WITH_DF: ON
+          TFLITE_DIR: ${{ github.workspace }}/tflite
+          DF_DIR: ${{ github.workspace }}/libdf
+        run: |
+          ./build.sh
