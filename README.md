@@ -43,8 +43,8 @@ engines, selectable as **clarity modes**.
 | Mode | Engine | Profile | Status |
 |---|---|---|---|
 | **1 · Low latency** | [RNNoise](https://github.com/xiph/rnnoise) | Compact RNN denoiser, lowest CPU/latency, 48 kHz framed | ✅ **Default, works out of the box** |
-| **2 · Balanced** | [DTLN](https://github.com/breizhn/DTLN) | Dual-signal LSTM via TensorFlow Lite, stronger denoising | ⚠️ Experimental — needs TFLite + models |
-| **3 · Maximum clarity** | [DeepFilterNet](https://github.com/Rikorose/DeepFilterNet) | Full-band 48 kHz deep filtering, highest quality | ⚠️ Experimental — needs `libdf` + model |
+| **2 · Balanced** | [DTLN](https://github.com/breizhn/DTLN) | Dual-signal LSTM via TensorFlow Lite, stronger denoising | ✅ Habilitado |
+| **3 · Maximum clarity** | [DeepFilterNet](https://github.com/Rikorose/DeepFilterNet) | Full-band 48 kHz deep filtering, highest quality | ✅ Habilitado |
 
 Modes 2 and 3 are optional builds. If their runtime/models aren't present, Clarifae
 **transparently falls back to RNNoise** — it never silently breaks your audio.

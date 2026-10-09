@@ -38,8 +38,10 @@ GEN="Unix Makefiles"; JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 if command -v ninja >/dev/null 2>&1; then GEN="Ninja"; fi
 
 EXTRA=()
-[ "${CLARIFAE_WITH_DTLN:-OFF}" = "ON" ] && EXTRA+=("-DCLARIFAE_WITH_DTLN=ON" "-DTFLITE_DIR=${TFLITE_DIR:?set TFLITE_DIR}")
-[ "${CLARIFAE_WITH_DF:-OFF}"   = "ON" ] && EXTRA+=("-DCLARIFAE_WITH_DF=ON"   "-DDF_DIR=${DF_DIR:?set DF_DIR}")
+CLARIFAE_WITH_DTLN="${CLARIFAE_WITH_DTLN:-ON}"
+CLARIFAE_WITH_DF="${CLARIFAE_WITH_DF:-ON}"
+[ "${CLARIFAE_WITH_DTLN}" = "ON" ] && EXTRA+=("-DCLARIFAE_WITH_DTLN=ON" "-DTFLITE_DIR=${TFLITE_DIR:?set TFLITE_DIR}")
+[ "${CLARIFAE_WITH_DF}"   = "ON" ] && EXTRA+=("-DCLARIFAE_WITH_DF=ON"   "-DDF_DIR=${DF_DIR:?set DF_DIR}")
 
 for ABI in $ABIS; do
   echo ">> Building $ABI ..."
