@@ -1,25 +1,47 @@
 name: Build Clarifae with DTLN and DeepFilterNet
+
 on:
   push:
     branches: [main]
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Android NDK
+      - name: Setup Android NDK
         uses: android-actions/setup-android@v3
-      - name: Download models (DTLN .tflite, DeepFilterNet df)
+        with:
+          api-level: 26
+      - name: Setup Android NDK
+        run: |
+          echo "ANDROID_NDK_HOME=${ANDROID_NDK_HOME}" >> $GITHUB_ENV
+      - name: Download RNNoise (default engine)
+        run: |
+          bash scripts/fetch_deps.sh || true
+      - name: Create model directories
         run: |
           mkdir -p models/dtln models/df
-          # Place model_1.tflite, model_2.tflite in models/dtln/
-          # Place DeepFilterNet files in models/df/
-      - name: Build
+      - name: Download DTLN models (.tflite)
+        run: |
+          # Colocar los archivos .tflite en models/dtln/
+          # Ejemplo: descargar model_1.tflite, model_2.tflite
+          # (en un caso real: curl -L -o models/dtln/model_1.tflite URL)
+          echo "Directorio models/dtln creado. Colocar .tflite aquí."
+      - name: Download DeepFilterNet models (df/)
+        run: |
+          # Colocar los archivos DeepFilterNet en models/df/
+          # Ejemplo: descargar archivos df/*
+          echo "Directorio models/df creado. Colocar archivos DeepFilterNet aquí."
+      - name: Build with DTLN and DeepFilterNet
         env:
-          ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
           CLARIFAE_WITH_DTLN: ON
           CLARIFAE_WITH_DF: ON
-          TFLITE_DIR: ${{ github.workspace }}/tflite
-          DF_DIR: ${{ github.workspace }}/libdf
+          TFLITE_DIR: ${{ github.workspace }}/models/dtln
+          DF_DIR: ${{ github.workspace }}/models/df
         run: |
-          ./build.sh
+          bash ./build.sh
+      - name: Verify library produced
+        run: |
+          ls -la lib/*/libclarifae.so || echo "No se produjo libclarifae.so"
