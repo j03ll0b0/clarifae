@@ -12,46 +12,9 @@ echo "=== Prepare binaries for modes 2 & 3 (32-bit + 64-bit) ==="
 
 # ---------- TFLite reference (mode 2) ----------
 mkdir -p "$HERE/tflite_ref/lib" "$HERE/tflite_ref/include"
-echo ">> TFLite: downloading AAR for headers + attempting .so reference ..."
-# Try newest AAR first, then fall back to verified 2.16.1
-AAR_URLS=(
-  "https://repo1.maven.org/maven2/org/tensorflow/tensorflow-lite/2.17.0/tensorflow-lite-2.17.0.aar"
-  "https://repo1.maven.org/maven2/org/tensorflow/tensorflow-lite/2.16.1/tensorflow-lite-2.16.1.aar"
-  "https://repo1.maven.org/maven2/org/tensorflow/tensorflow-lite/2.15.0/tensorflow-lite-2.15.0.aar"
-)
-AAR_OK=0
-AAR_URL=""
-for url in "${AAR_URLS[@]}"; do
-  echo ">> Trying AAR: $url"
-  if curl -fL --retry 2 -o /tmp/tensorflow-lite.aar "$url" 2>/dev/null && [ -s /tmp/tensorflow-lite.aar ]; then
-    AAR_OK=1
-    AAR_URL="$url"
-    echo ">> AAR downloaded ($(stat -c%s /tmp/tensorflow-lite.aar) bytes) from $url"
-    break
-  else
-    echo ">> AAR $url not available or empty"
-  fi
-done
-
-# Extract c_api.h from AAR (always available)
-if [ "$AAR_OK" -eq 1 ]; then
-  echo ">> Unzipping AAR for headers ..."
-  mkdir -p /tmp/aar_extract
-  rm -rf /tmp/aar_extract/*
-  unzip -o -q /tmp/tensorflow-lite.aar -d /tmp/aar_extract/ || true
-  if [ -f /tmp/aar_extract/headers/tensorflow/lite/c/c_api.h ]; then
-    cp /tmp/aar_extract/headers/tensorflow/lite/c/c_api.h "$HERE/tflite_ref/include/c_api.h"
-    echo ">> c_api.h staged from AAR"
-  fi
-  # Try .so from AAR (most versions don't include libtensorflowlite_c.so, but check anyway)
-  for abi_dir in arm64-v8a armeabi-v7a; do
-    AAR_SO="/tmp/aar_extract/jni/$abi_dir/libtensorflowlite_c.so"
-    if [ -f "$AAR_SO" ]; then
-      cp "$AAR_SO" "$HERE/tflite_ref/lib/libtensorflowlite_c.so"
-      echo ">> libtensorflowlite_c.so staged from AAR ($abi_dir)"
-    fi
-  done
-fi
+echo ">> TFLite: only using TensorFlow source v2.22.0-rc0 for .so and c_api.h (no mixed versions) ..."
+# We build .so from source; c_api.h comes from the same cloned source.
+# No AAR download needed.
 
 # ---------- Build libtensorflowlite_c.so via CMake (most reliable) ----------
 if [ ! -f "$HERE/tflite_ref/lib/libtensorflowlite_c.so" ]; then
@@ -76,7 +39,8 @@ if [ ! -f "$HERE/tflite_ref/lib/libtensorflowlite_c.so" ]; then
       -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
       -DANDROID_ABI="$ABI" \
       -DANDROID_PLATFORM=android-26 \
-      -DCMAKE_BUILD_TYPE=Release 2>&1 | tail -n10 || { echo "ERROR: cmake configure failed for $ABI"; exit 1; }
+      -DCMAKE_BUILD_TYPE=Release \
+      -DTFLITE_HOST_TOOLS_DIR=$(dirname $(which flatc 2>/dev/null || echo "/usr/bin")) 2>&1 | tail -n10 || { echo "ERROR: cmake configure failed for $ABI"; exit 1; }
     echo ">> Compiling libtensorflowlite_c.so for $ABI ..."
     cmake --build "$BUILD_DIR" -j$(nproc) 2>&1 | tail -n10 || { echo "ERROR: cmake build failed for $ABI"; exit 1; }
     # Find the produced .so (may be in build dir or subdir)
