@@ -55,27 +55,41 @@ fi
 
 # ---------- Build libtensorflowlite_c.so via CMake (most reliable) ----------
 if [ ! -f "$HERE/tflite_ref/lib/libtensorflowlite_c.so" ]; then
-  echo ">> Building libtensorflowlite_c.so from TensorFlow source (CMake method) ..."
-  # Clone latest/stable tag shallow to save time; fall back to main
-  TF_BRANCH="v2.16.1"
+  echo ">> Building libtensorflowlite_c.so from TensorFlow source (CMake + NDK, newest version v2.22.0-rc0) ..."
+  TF_BRANCH="v2.22.0-rc0"
+  # Verify tag exists; fall back to main
   if ! git ls-remote --tags https://github.com/tensorflow/tensorflow.git "refs/tags/$TF_BRANCH" 2>/dev/null | grep -q "$TF_BRANCH"; then
+    echo ">> Tag $TF_BRANCH not found on remote; falling back to main ..."
     TF_BRANCH="main"
   fi
   echo ">> Cloning tensorflow source (branch $TF_BRANCH) ..."
   rm -rf /tmp/tensorflow_src
   git clone --depth 1 --branch "$TF_BRANCH" https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src 2>/dev/null || git clone --depth 1 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src || { echo "ERROR: tensorflow clone failed"; exit 1; }
-  echo ">> Compiling with CMake ..."
-  rm -rf /tmp/tflite_c_build
-  mkdir -p /tmp/tflite_c_build
-  cmake -S /tmp/tensorflow_src/tensorflow/lite/c -B /tmp/tflite_c_build -DCMAKE_BUILD_TYPE=Release 2>&1 | tail -n10 || { echo "ERROR: cmake configure failed"; exit 1; }
-  cmake --build /tmp/tflite_c_build -j$(nproc) 2>&1 | tail -n10 || { echo "ERROR: cmake build failed"; exit 1; }
-  if [ -f /tmp/tflite_c_build/libtensorflowlite_c.so ]; then
-    cp /tmp/tflite_c_build/libtensorflowlite_c.so "$HERE/tflite_ref/lib/libtensorflowlite_c.so"
-    echo ">> libtensorflowlite_c.so built from source and staged"
-  else
-    echo ">> Note: .so not produced by cmake (checking alternate paths)"
-    find /tmp/tflite_c_build -name "libtensorflowlite_c.so" -exec cp {} "$HERE/tflite_ref/lib/libtensorflowlite_c.so" \; 2>/dev/null || { echo "ERROR: libtensorflowlite_c.so not found after cmake build"; exit 1; }
-  fi
+
+  # Compilar para ambas arquitecturas: 32-bit (armeabi-v7a) y 64-bit (arm64-v8a)
+  for ABI in arm64-v8a armeabi-v7a; do
+    BUILD_DIR="/tmp/tflite_c_build_$ABI"
+    echo ">> Configuring CMake for Android ABI=$ABI ..."
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR"
+    cmake -S /tmp/tensorflow_src/tensorflow/lite/c -B "$BUILD_DIR" \
+      -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
+      -DANDROID_ABI="$ABI" \
+      -DANDROID_PLATFORM=android-26 \
+      -DCMAKE_BUILD_TYPE=Release 2>&1 | tail -n10 || { echo "ERROR: cmake configure failed for $ABI"; exit 1; }
+    echo ">> Compiling libtensorflowlite_c.so for $ABI ..."
+    cmake --build "$BUILD_DIR" -j$(nproc) 2>&1 | tail -n10 || { echo "ERROR: cmake build failed for $ABI"; exit 1; }
+    # Find the produced .so (may be in build dir or subdir)
+    BUILT_SO=$(find "$BUILD_DIR" -maxdepth 2 -name "libtensorflowlite_c.so" | head -n1)
+    if [ -f "$BUILT_SO" ]; then
+      # Copy to tflite_ref/lib/ (referenced by build.sh as TFLITE_DIR/lib/)
+      cp "$BUILT_SO" "$HERE/tflite_ref/lib/libtensorflowlite_c.so"
+      echo ">> libtensorflowlite_c.so built and staged for $ABI ($(du -h "$BUILT_SO" | cut -f1))"
+    else
+      echo "ERROR: libtensorflowlite_c.so not produced for $ABI (looked in $BUILD_DIR)"
+      exit 1
+    fi
+  done
 fi
 
 if [ -f "$HERE/tflite_ref/lib/libtensorflowlite_c.so" ]; then
