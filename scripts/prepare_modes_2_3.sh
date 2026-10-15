@@ -102,9 +102,10 @@ else
   exit 1
 fi
 
-if [ -f /tmp/aar_extract/include/c_api.h ]; then
-  cp /tmp/aar_extract/include/c_api.h "$HERE/tflite_ref/include/c_api.h"
-  echo ">> c_api.h staged from AAR"
+# c_api.h must match the .so version (v2.22.0-rc0 / same source)
+if [ -f /tmp/tensorflow_src/tensorflow/lite/c/c_api.h ]; then
+  cp /tmp/tensorflow_src/tensorflow/lite/c/c_api.h "$HERE/tflite_ref/include/c_api.h"
+  echo ">> c_api.h staged from tensorflow source ($TF_BRANCH)"
 fi
 
 C_API_URLS=(
