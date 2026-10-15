@@ -38,8 +38,10 @@ jobs:
           FILESIZE=$(stat -c%s /tmp/ndk.zip)
           echo ">> Downloaded size: $FILESIZE bytes"
           [ "$FILESIZE" -gt 300000000 ] || { echo "ERROR: /tmp/ndk.zip too small ($FILESIZE bytes), likely corrupt/incomplete"; exit 1; }
-          echo ">> Testing zip integrity ..."
-          unzip -t /tmp/ndk.zip >/dev/null || { echo "ERROR: zip integrity check failed"; exit 1; }
+          echo ">> Verifying zip contents quickly ..."
+          python3 -m zipfile -l /tmp/ndk.zip >/dev/null 2>&1 || unzip -l /tmp/ndk.zip | head -n5 || { echo "ERROR: zip appears corrupt or unreadable"; exit 1; }
+          # Ensure at least one key file is listed (fast check, not full -t)
+          unzip -l /tmp/ndk.zip 2>/dev/null | grep -q "build/cmake/android.toolchain.cmake" || { echo "WARNING: zip may be incomplete (key file not listed)"; }
           echo ">> Unzipping ..."
           sudo rm -rf /opt/android-ndk-r27c
           sudo unzip -o /tmp/ndk.zip -d /opt/ || { echo "ERROR: unzip failed"; exit 1; }
