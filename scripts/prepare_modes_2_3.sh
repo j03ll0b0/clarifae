@@ -16,37 +16,35 @@ echo ">> TFLite: only using TensorFlow source v2.22.0-rc0 for .so and c_api.h (n
 # We build .so from source; c_api.h comes from the same cloned source.
 # No AAR download needed.
 
-# ---------- Build libtensorflowlite_c.so via CMake (most reliable) ----------
+# ---------- Build libtensorflowlite_c.so via CMake (Method 2: Android NDK) ----------
 if [ ! -f "$HERE/tflite_ref/lib/libtensorflowlite_c.so" ]; then
-  echo ">> Building libtensorflowlite_c.so from TensorFlow source (CMake + NDK, newest version v2.22.0-rc0) ..."
+  echo ">> Building libtensorflowlite_c.so from TensorFlow source (CMake + NDK, newest version v2.22.0-rc0, 32-bit + 64-bit) ..."
   TF_BRANCH="v2.22.0-rc0"
-  # Verify tag exists; fall back to main
   if ! git ls-remote --tags https://github.com/tensorflow/tensorflow.git "refs/tags/$TF_BRANCH" 2>/dev/null | grep -q "$TF_BRANCH"; then
-    echo ">> Tag $TF_BRANCH not found on remote; falling back to main ..."
+    echo ">> Tag $TF_BRANCH not found; falling back to main ..."
     TF_BRANCH="main"
   fi
-  echo ">> Cloning tensorflow source (branch $TF_BRANCH) ..."
   rm -rf /tmp/tensorflow_src
   git clone --depth 1 --branch "$TF_BRANCH" https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src 2>/dev/null || git clone --depth 1 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src || { echo "ERROR: tensorflow clone failed"; exit 1; }
 
-  # Compilar para ambas arquitecturas: 32-bit (armeabi-v7a) y 64-bit (arm64-v8a)
+  # Build for both ABIs using the Android NDK cross-compilation toolchain
   for ABI in arm64-v8a armeabi-v7a; do
     BUILD_DIR="/tmp/tflite_c_build_$ABI"
     echo ">> Configuring CMake for Android ABI=$ABI ..."
     rm -rf "$BUILD_DIR"
     mkdir -p "$BUILD_DIR"
+    # Find flatc binary from installed flatbuffers-compiler or /usr/bin
+    FLATC_DIR=$(dirname $(which flatc 2>/dev/null || echo "/usr/bin/flatc"))
     cmake -S /tmp/tensorflow_src/tensorflow/lite/c -B "$BUILD_DIR" \
       -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
       -DANDROID_ABI="$ABI" \
       -DANDROID_PLATFORM=android-26 \
       -DCMAKE_BUILD_TYPE=Release \
-      -DTFLITE_HOST_TOOLS_DIR=$(dirname $(which flatc 2>/dev/null || echo "/usr/bin")) 2>&1 | tail -n10 || { echo "ERROR: cmake configure failed for $ABI"; exit 1; }
+      -DTFLITE_HOST_TOOLS_DIR="$FLATC_DIR" 2>&1 | tail -n10 || { echo "ERROR: cmake configure failed for $ABI"; exit 1; }
     echo ">> Compiling libtensorflowlite_c.so for $ABI ..."
     cmake --build "$BUILD_DIR" -j$(nproc) 2>&1 | tail -n10 || { echo "ERROR: cmake build failed for $ABI"; exit 1; }
-    # Find the produced .so (may be in build dir or subdir)
-    BUILT_SO=$(find "$BUILD_DIR" -maxdepth 2 -name "libtensorflowlite_c.so" | head -n1)
+    BUILT_SO=$(find "$BUILD_DIR" -maxdepth 3 -name "libtensorflowlite_c.so" | head -n1)
     if [ -f "$BUILT_SO" ]; then
-      # Copy to tflite_ref/lib/ (referenced by build.sh as TFLITE_DIR/lib/)
       cp "$BUILT_SO" "$HERE/tflite_ref/lib/libtensorflowlite_c.so"
       echo ">> libtensorflowlite_c.so built and staged for $ABI ($(du -h "$BUILT_SO" | cut -f1))"
     else
