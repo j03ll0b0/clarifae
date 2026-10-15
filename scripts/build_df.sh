@@ -28,8 +28,8 @@ for ABI in arm64-v8a armeabi-v7a x86_64; do
   echo ">> Building libdf for $ABI ..."
   cd "$LIBDF_DIR"
   cargo ndk \
-    --platform 26 \
     --target-dir "target/ndk-$ABI" \
+    --platform 26 \
     --release \
     -- build 2>&1 | tail -n5 || { echo "! cargo-ndk build failed for $ABI (platform=26)"; exit 1; }
   echo ">> libdf (Android $ABI) -> $(pwd)/target/ndk-$ABI/release/libdf.so"
