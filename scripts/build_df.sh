@@ -8,10 +8,25 @@ NDK="${ANDROID_NDK_HOME:?Set ANDROID_NDK_HOME to Android NDK r27+}"
 echo ">> NDK: $NDK"
 echo ">> Building libdf for Android ABIs: arm64-v8a armeabi-v7a x86_64 ..."
 
+# Find libDF directory robustly
+LIBDF_DIR=""
+for rel in "../../models/df/libDF" "models/df/libDF" "../models/df/libDF"; do
+  if [ -d "$HERE/$rel" ]; then
+    LIBDF_DIR="$HERE/$rel"
+    break
+  fi
+  if [ -d "$PWD/$rel" ]; then
+    LIBDF_DIR="$PWD/$rel"
+    break
+  fi
+done
+[ -n "$LIBDF_DIR" ] && [ -f "$LIBDF_DIR/Cargo.toml" ] || { echo "ERROR: models/df/libDF not found (looked from $HERE and $PWD)"; exit 1; }
+echo ">> libDF source: $LIBDF_DIR"
+
 # cargo-ndk builds each ABI using the NDK toolchain; outputs to target/<triple>/release/
 for ABI in arm64-v8a armeabi-v7a x86_64; do
   echo ">> Building libdf for $ABI ..."
-  cd "$HERE/../../models/df/libDF"
+  cd "$LIBDF_DIR"
   cargo ndk \
     --platform $ABI \
     --target-dir "target/ndk-$ABI" \

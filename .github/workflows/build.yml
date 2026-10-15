@@ -18,12 +18,12 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq cmake ninja-build build-essential python3 python3-pip wget curl unzip git
 
-      - name: Setup Rust (updated for cargo-ndk compatibility)
+      - name: Setup Rust (updated for cargo-ndk compatibility, no invalid profile, no rust-cache)
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
-          profile: minimal
           override: true
+          cache: false
 
       - name: Install cargo-ndk
         run: |
@@ -31,11 +31,18 @@ jobs:
 
       - name: Download and install Android NDK r27c manually
         run: |
+          set -euo pipefail
           sudo mkdir -p /opt/android-ndk
-          sudo wget -q https://dl.google.com/android/repository/android-ndk-r27c-linux.zip -O /tmp/ndk.zip || echo "NDK download skipped (may exist)"
-          sudo unzip -o -q /tmp/ndk.zip -d /opt/ 2>/dev/null || echo "NDK unzip completed or skipped"
-          sudo mv /opt/android-ndk-r27c /opt/android-ndk 2>/dev/null || echo "NDK path set"
-          ls -la /opt/android-ndk/build/cmake/android.toolchain.cmake || echo "NDK toolchain not at expected path"
+          echo ">> Downloading NDK r27c ..."
+          sudo wget -q --show-progress -O /tmp/ndk.zip https://dl.google.com/android/repository/android-ndk-r27c-linux.zip || { echo "ERROR: NDK download failed"; exit 1; }
+          [ -s /tmp/ndk.zip ] || { echo "ERROR: /tmp/ndk.zip is empty"; exit 1; }
+          echo ">> Unzipping ..."
+          sudo unzip -o -q /tmp/ndk.zip -d /opt/ || { echo "ERROR: unzip failed"; exit 1; }
+          [ -d /opt/android-ndk-r27c ] || { echo "ERROR: /opt/android-ndk-r27c not found after unzip"; exit 1; }
+          sudo mv /opt/android-ndk-r27c /opt/android-ndk || { echo "ERROR: mv failed"; exit 1; }
+          echo ">> Verifying NDK toolchain ..."
+          ls -la /opt/android-ndk/build/cmake/android.toolchain.cmake || { echo "ERROR: NDK toolchain missing"; exit 1; }
+          echo ">> NDK ready at /opt/android-ndk"
 
       - name: Export NDK path
         run: |
@@ -75,7 +82,23 @@ jobs:
           TFLITE_DIR: ${{ github.workspace }}/tflite_ref
           DF_DIR: ${{ github.workspace }}/models/df/libDF/target/ndk-arm64-v8a/release
         run: |
-          bash ./build.sh 2>&1 | tail -n30 || echo "Build completed (optional backends active; full .so required for complete modes 2 and 3)"
+          bash ./build.sh 2>&1 | tail -n30 || { echo "ERROR: build.sh failed"; exit 1; }
+
+      - name: Upload build artifacts (32-bit + 64-bit + x86_64, modes 2 & 3)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clarifae-build-modes-2-3
+          path: |
+            lib/
+            build/
+            tflite_ref/lib/
+            tflite_ref/include/
+            models/df/libDF/target/ndk-arm64-v8a/release/
+            models/df/libDF/target/ndk-armeabi-v7a/release/
+            models/df/libDF/target/ndk-x86_64/release/
+            scripts/
+          retention-days: 30
 
       - name: Verify artifacts
         run: |

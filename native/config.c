@@ -7,6 +7,14 @@
 
 #include <sys/system_properties.h>
 #include <stdint.h>
+
+/* Manual declarations for Android NDK property functions not fully exposed in public headers */
+struct prop_info;  /* opaque; only pointer used */
+extern struct prop_info* __system_property_find(const char* name);
+extern uint32_t __system_property_serial(const struct prop_info* pi);
+
+/* Declaration for Android NDK property serial function */
+extern uint32_t __system_property_serial(const prop_info* pi);
 #include <stdlib.h>
 #include <string.h>
 
