@@ -13,7 +13,7 @@ echo "=== Prepare binaries for modes 2 & 3 (32-bit + 64-bit) ==="
 # ---------- TFLite reference (mode 2) ----------
 mkdir -p "$HERE/tflite_ref/lib" "$HERE/tflite_ref/include"
 echo ">> TFLite: downloading from Maven AAR (most reliable for Android) ..."
-AAR_URL="https://repo1.maven.org/maven2/org/tensorflow/tensorflow-lite/2.17.0/tensorflow-lite-2.17.0.aar"
+AAR_URL="https://repo1.maven.org/maven2/org/tensorflow/tensorflow-lite/2.16.1/tensorflow-lite-2.16.1.aar"
 if curl -fL --retry 3 -o /tmp/tensorflow-lite.aar "$AAR_URL" 2>/dev/null && [ -s /tmp/tensorflow-lite.aar ]; then
   echo ">> AAR downloaded ($(stat -c%s /tmp/tensorflow-lite.aar) bytes)"
   echo ">> Unzipping AAR ..."
