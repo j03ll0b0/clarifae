@@ -33,16 +33,24 @@ jobs:
         run: |
           set -euo pipefail
           sudo mkdir -p /opt/android-ndk
-          echo ">> Downloading NDK r27c ..."
-          sudo wget -q --show-progress -O /tmp/ndk.zip https://dl.google.com/android/repository/android-ndk-r27c-linux.zip || { echo "ERROR: NDK download failed"; exit 1; }
-          [ -s /tmp/ndk.zip ] || { echo "ERROR: /tmp/ndk.zip is empty"; exit 1; }
+          echo ">> Downloading NDK r27c (expect ~500MB) ..."
+          sudo wget --show-progress -O /tmp/ndk.zip https://dl.google.com/android/repository/android-ndk-r27c-linux.zip || { echo "ERROR: NDK download failed"; exit 1; }
+          FILESIZE=$(stat -c%s /tmp/ndk.zip)
+          echo ">> Downloaded size: $FILESIZE bytes"
+          [ "$FILESIZE" -gt 300000000 ] || { echo "ERROR: /tmp/ndk.zip too small ($FILESIZE bytes), likely corrupt/incomplete"; exit 1; }
+          echo ">> Testing zip integrity ..."
+          unzip -t /tmp/ndk.zip >/dev/null || { echo "ERROR: zip integrity check failed"; exit 1; }
           echo ">> Unzipping ..."
-          sudo unzip -o -q /tmp/ndk.zip -d /opt/ || { echo "ERROR: unzip failed"; exit 1; }
-          [ -d /opt/android-ndk-r27c ] || { echo "ERROR: /opt/android-ndk-r27c not found after unzip"; exit 1; }
+          sudo rm -rf /opt/android-ndk-r27c
+          sudo unzip -o /tmp/ndk.zip -d /opt/ || { echo "ERROR: unzip failed"; exit 1; }
+          [ -d /opt/android-ndk-r27c ] || { echo "ERROR: /opt/android-ndk-r27c missing after unzip"; ls -la /opt/; exit 1; }
+          echo ">> Moving to /opt/android-ndk ..."
+          sudo rm -rf /opt/android-ndk
           sudo mv /opt/android-ndk-r27c /opt/android-ndk || { echo "ERROR: mv failed"; exit 1; }
-          echo ">> Verifying NDK toolchain ..."
-          ls -la /opt/android-ndk/build/cmake/android.toolchain.cmake || { echo "ERROR: NDK toolchain missing"; exit 1; }
-          echo ">> NDK ready at /opt/android-ndk"
+          echo ">> Verifying NDK contents ..."
+          [ -f /opt/android-ndk/build/cmake/android.toolchain.cmake ] || { echo "ERROR: toolchain file missing"; ls -la /opt/android-ndk/; exit 1; }
+          [ -d /opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin ] || { echo "ERROR: llvm toolchain missing"; exit 1; }
+          echo ">> NDK ready at /opt/android-ndk ($(du -sh /opt/android-ndk | cut -f1))"
 
       - name: Export NDK path
         run: |
@@ -85,7 +93,7 @@ jobs:
           bash ./build.sh 2>&1 | tail -n30 || { echo "ERROR: build.sh failed"; exit 1; }
 
       - name: Upload build artifacts (32-bit + 64-bit + x86_64, modes 2 & 3)
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: clarifae-build-modes-2-3
