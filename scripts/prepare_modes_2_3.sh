@@ -42,7 +42,7 @@ if [ ! -f "$HERE/tflite_ref/lib/libtensorflowlite_c.so" ]; then
   cd /tmp/tensorflow_src
   BAZEL_CMD=$(command -v bazel 2>/dev/null || echo "/usr/local/bin/bazelisk")
   $BAZEL_CMD build -c opt --config=monolithic //tensorflow/lite/c:libtensorflowlite_c.so 2>&1 | tail -n15 || { echo "ERROR: bazel build failed"; exit 1; }
-  BUILT_SO=$(find bazel-bin -maxdepth 6 -name "libtensorflowlite_c.so" | head -n1)
+  BUILT_SO=$(find -L bazel-bin -maxdepth 6 -name "libtensorflowlite_c.so" | head -n1)
   if [ -f "$BUILT_SO" ]; then
     cp "$BUILT_SO" "$HERE/tflite_ref/lib/libtensorflowlite_c.so"
     echo ">> libtensorflowlite_c.so built with Bazel (monolithic) and staged ($(du -h "$BUILT_SO" | cut -f1))"
