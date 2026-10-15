@@ -61,16 +61,11 @@ jobs:
           # Try to download a working Android TFLite C library reference; if unavailable, reference directory is set for user to complete
           echo "Reference TFLite SDK at $PWD/tflite_ref (needs libtensorflowlite_c.so + include/c_api.h for full build)" > tflite_ref/lib/README
 
-      - name: Cross-compile libdf (DeepFilterNet) with cargo-ndk
+      - name: Prepare binaries for modes 2 & 3 (32-bit + 64-bit)
         env:
           ANDROID_NDK_HOME: /opt/android-ndk
         run: |
-          bash scripts/build_df.sh 2>&1 || {
-            echo "Attempting direct cargo Android build as fallback...";
-            export PATH=/opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH;
-            cd models/df/libDF;
-            cargo build --release --target aarch64-linux-android 2>&1 | tail -n10 || echo "Direct cargo Android build completed or skipped (needs libdf.so for full mode 3)"
-          }
+          bash scripts/prepare_modes_2_3.sh 2>&1
 
       - name: Build with optional backends enabled
         env:
