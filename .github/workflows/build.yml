@@ -25,6 +25,10 @@ jobs:
           override: true
           cache: false
 
+      - name: Add Rust Android targets for cargo-ndk
+        run: |
+          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+
       - name: Install cargo-ndk
         run: |
           cargo install cargo-ndk 2>&1 | tail -n5 || cargo install cargo-ndk@3.5.4 2>&1 | tail -n5 || echo "cargo-ndk install attempted (may need newer rust)"
