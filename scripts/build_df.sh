@@ -23,16 +23,22 @@ done
 [ -n "$LIBDF_DIR" ] && [ -f "$LIBDF_DIR/Cargo.toml" ] || { echo "ERROR: models/df/libDF not found (looked from $HERE and $PWD)"; exit 1; }
 echo ">> libDF source: $LIBDF_DIR"
 
-# cargo-ndk builds each ABI using the NDK toolchain; outputs to target/<triple>/release/
+# cargo-ndk uses triple names (not ABI names) for --platform
+CARGO_NDK_MAP="arm64-v8a=aarch64-linux-android armeabi-v7a=armv7-linux-androideabi x86_64=x86_64-linux-android"
 for ABI in arm64-v8a armeabi-v7a x86_64; do
-  echo ">> Building libdf for $ABI ..."
+  # Translate ABI to cargo-ndk platform triple
+  case "$ABI" in
+    arm64-v8a) PLATFORM="aarch64-linux-android" ;;
+    armeabi-v7a) PLATFORM="armv7-linux-androideabi" ;;
+    x86_64) PLATFORM="x86_64-linux-android" ;;
+  esac
+  echo ">> Building libdf for $ABI (platform=$PLATFORM) ..."
   cd "$LIBDF_DIR"
   cargo ndk \
-    --platform $ABI \
+    --platform "$PLATFORM" \
     --target-dir "target/ndk-$ABI" \
     --release \
-    -- build 2>&1 | tail -n5 || { echo "! cargo-ndk build failed for $ABI"; exit 1; }
-  # Reference output for DF_DIR in native build
+    -- build 2>&1 | tail -n5 || { echo "! cargo-ndk build failed for $ABI ($PLATFORM)"; exit 1; }
   echo ">> libdf (Android $ABI) -> $(pwd)/target/ndk-$ABI/release/libdf.so"
 done
 
