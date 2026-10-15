@@ -53,33 +53,38 @@ if [ "$AAR_OK" -eq 1 ]; then
   done
 fi
 
-# Fallback / extra attempts for .so (public sources are unreliable; fail clearly)
+# ---------- Build libtensorflowlite_c.so via CMake (most reliable) ----------
 if [ ! -f "$HERE/tflite_ref/lib/libtensorflowlite_c.so" ]; then
-  echo ">> Attempting additional .so sources ..."
-  EXTRA_SO_URLS=(
-    "https://github.com/ValYouW/tflite-dist/releases/download/latest/libtensorflowlite_c.so"
-    "https://github.com/google-ai-edge/litert/releases/download/v2.16.1/libtensorflowlite_c.so"
-    "https://github.com/tphakala/tflite_c/releases/download/v2.16.1/libtensorflowlite_c.so"
-  )
-  for url in "${EXTRA_SO_URLS[@]}"; do
-    if curl -fL --retry 2 -o /tmp/libtensorflowlite_c.so "$url" 2>/dev/null && [ -s /tmp/libtensorflowlite_c.so ]; then
-      cp /tmp/libtensorflowlite_c.so "$HERE/tflite_ref/lib/libtensorflowlite_c.so"
-      echo ">> libtensorflowlite_c.so staged from $url"
-      break
-    else
-      echo ">> $url unavailable or empty"
-    fi
-  done
+  echo ">> Building libtensorflowlite_c.so from TensorFlow source (CMake method) ..."
+  # Clone latest/stable tag shallow to save time; fall back to main
+  TF_BRANCH="v2.16.1"
+  if ! git ls-remote --tags https://github.com/tensorflow/tensorflow.git "refs/tags/$TF_BRANCH" 2>/dev/null | grep -q "$TF_BRANCH"; then
+    TF_BRANCH="main"
+  fi
+  echo ">> Cloning tensorflow source (branch $TF_BRANCH) ..."
+  rm -rf /tmp/tensorflow_src
+  git clone --depth 1 --branch "$TF_BRANCH" https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src 2>/dev/null || git clone --depth 1 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src || { echo "ERROR: tensorflow clone failed"; exit 1; }
+  echo ">> Compiling with CMake ..."
+  rm -rf /tmp/tflite_c_build
+  mkdir -p /tmp/tflite_c_build
+  cmake -S /tmp/tensorflow_src/tensorflow/lite/c -B /tmp/tflite_c_build -DCMAKE_BUILD_TYPE=Release 2>&1 | tail -n10 || { echo "ERROR: cmake configure failed"; exit 1; }
+  cmake --build /tmp/tflite_c_build -j$(nproc) 2>&1 | tail -n10 || { echo "ERROR: cmake build failed"; exit 1; }
+  if [ -f /tmp/tflite_c_build/libtensorflowlite_c.so ]; then
+    cp /tmp/tflite_c_build/libtensorflowlite_c.so "$HERE/tflite_ref/lib/libtensorflowlite_c.so"
+    echo ">> libtensorflowlite_c.so built from source and staged"
+  else
+    echo ">> Note: .so not produced by cmake (checking alternate paths)"
+    find /tmp/tflite_c_build -name "libtensorflowlite_c.so" -exec cp {} "$HERE/tflite_ref/lib/libtensorflowlite_c.so" \; 2>/dev/null || { echo "ERROR: libtensorflowlite_c.so not found after cmake build"; exit 1; }
+  fi
 fi
 
 if [ -f "$HERE/tflite_ref/lib/libtensorflowlite_c.so" ]; then
   echo ">> libtensorflowlite_c.so present ($(du -h "$HERE/tflite_ref/lib/libtensorflowlite_c.so" | cut -f1))"
 else
-  echo ">> libtensorflowlite_c.so NOT AVAILABLE in any public source (AAR and releases)."
+  echo ">> libtensorflowlite_c.so MISSING after AAR + CMake build."
   echo ">> ACTION REQUIRED: place the file manually at:"
   echo "    $HERE/tflite_ref/lib/libtensorflowlite_c.so"
-  echo ">> You can build/download it from: https://github.com/tensorflow/tensorflow/releases"
-  echo ">> or from https://github.com/tphakala/tflite_c/releases (manual selection)"
+  echo ">> Source: https://github.com/tensorflow/tensorflow/releases (select Linux/Android .so)"
   exit 1
 fi
 
