@@ -12,30 +12,62 @@ echo "=== Prepare binaries for modes 2 & 3 (32-bit + 64-bit) ==="
 
 # ---------- TFLite reference (mode 2) ----------
 mkdir -p "$HERE/tflite_ref/lib" "$HERE/tflite_ref/include"
-echo ">> TFLite: trying to download libtensorflowlite_c.so + c_api.h ..."
-# Attempt from known sources; fall back silently if unavailable.
-# Source 1: tphakala/tflite_c releases (try latest asset URL first, then v2.16.1)
-TFLITE_SO_URLS=(
-  "https://github.com/tphakala/tflite_c/releases/download/v2.16.1/libtensorflowlite_c.so"
-  "https://github.com/tphakala/tflite_c/releases/latest/download/libtensorflowlite_c.so"
-  "https://github.com/ValYouW/tflite-dist/releases/download/latest/libtensorflowlite_c.so"
-)
-if [ ! -f "$HERE/tflite_ref/lib/libtensorflowlite_c.so" ]; then
-  for url in "${TFLITE_SO_URLS[@]}"; do
-    echo ">> Trying TFLite .so from $url"
-    if curl -fL --retry 2 -o /tmp/libtensorflowlite_c.so "$url" 2>/dev/null; then
-      if [ -s /tmp/libtensorflowlite_c.so ]; then
-        cp /tmp/libtensorflowlite_c.so "$HERE/tflite_ref/lib/libtensorflowlite_c.so"
-        echo "  -> libtensorflowlite_c.so staged"
-        break 2
-      else
-        echo "  -> empty file from $url"
-      fi
+echo ">> TFLite: downloading from Maven AAR (most reliable for Android) ..."
+AAR_URL="https://repo1.maven.org/maven2/org/tensorflow/tensorflow-lite/2.17.0/tensorflow-lite-2.17.0.aar"
+if curl -fL --retry 3 -o /tmp/tensorflow-lite.aar "$AAR_URL" 2>/dev/null && [ -s /tmp/tensorflow-lite.aar ]; then
+  echo ">> AAR downloaded ($(stat -c%s /tmp/tensorflow-lite.aar) bytes)"
+  echo ">> Unzipping AAR ..."
+  mkdir -p /tmp/aar_extract
+  rm -rf /tmp/aar_extract/*
+  unzip -o -q /tmp/tensorflow-lite.aar -d /tmp/aar_extract/ || { echo "ERROR: AAR unzip failed"; exit 1; }
+  # Extract .so for arm64-v8a (mode 3 reference) and armeabi-v7a (mode 2 32-bit)
+  for abi_dir in arm64-v8a armeabi-v7a; do
+    AAR_SO="/tmp/aar_extract/jni/$abi_dir/libtensorflowlite_c.so"
+    if [ -f "$AAR_SO" ]; then
+      cp "$AAR_SO" "$HERE/tflite_ref/lib/libtensorflowlite_c.so"
+      echo ">> libtensorflowlite_c.so staged from AAR ($abi_dir)"
     else
-      echo "  -> fetch failed for $url"
+      echo ">> Note: $abi_dir .so not in AAR (expected for lite)"
     fi
   done
-  [ -f "$HERE/tflite_ref/lib/libtensorflowlite_c.so" ] || { echo "ERROR: libtensorflowlite_c.so could not be fetched"; exit 1; }
+  # If .so not found, try fallback download
+  if [ ! -f "$HERE/tflite_ref/lib/libtensorflowlite_c.so" ]; then
+    echo ">> Fallback: trying direct .so download ..."
+    # Fallback URLs (less reliable)
+    FALLBACK_URLS=(
+      "https://github.com/ValYouW/tflite-dist/releases/download/latest/libtensorflowlite_c.so"
+    )
+    for url in "${FALLBACK_URLS[@]}"; do
+      if curl -fL --retry 2 -o /tmp/libtensorflowlite_c.so "$url" 2>/dev/null && [ -s /tmp/libtensorflowlite_c.so ]; then
+        cp /tmp/libtensorflowlite_c.so "$HERE/tflite_ref/lib/libtensorflowlite_c.so"
+        echo ">> libtensorflowlite_c.so staged from fallback"
+        break
+      fi
+    done
+  fi
+else
+  echo ">> AAR download failed; trying direct .so ..."
+  FALLBACK_URLS=(
+    "https://github.com/ValYouW/tflite-dist/releases/download/latest/libtensorflowlite_c.so"
+  )
+  FALLBACK_OK=0
+  for url in "${FALLBACK_URLS[@]}"; do
+    if curl -fL --retry 2 -o /tmp/libtensorflowlite_c.so "$url" 2>/dev/null && [ -s /tmp/libtensorflowlite_c.so ]; then
+      cp /tmp/libtensorflowlite_c.so "$HERE/tflite_ref/lib/libtensorflowlite_c.so"
+      echo ">> libtensorflowlite_c.so staged from fallback"
+      FALLBACK_OK=1
+      break
+    fi
+  done
+  if [ "$FALLBACK_OK" -ne 1 ]; then
+    echo "ERROR: libtensorflowlite_c.so could not be fetched (AAR and fallbacks failed)"
+    exit 1
+  fi
+fi
+
+if [ -f /tmp/aar_extract/include/c_api.h ]; then
+  cp /tmp/aar_extract/include/c_api.h "$HERE/tflite_ref/include/c_api.h"
+  echo ">> c_api.h staged from AAR"
 fi
 
 C_API_URLS=(
