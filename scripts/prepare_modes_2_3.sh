@@ -16,9 +16,11 @@ echo ">> TFLite: only using TensorFlow source v2.22.0-rc0 for .so and c_api.h (n
 # We build .so from source; c_api.h comes from the same cloned source.
 # No AAR download needed.
 
-# ---------- Build libtensorflowlite_c.so via CMake (Method 2: Android NDK) ----------
+# ---------- Build libtensorflowlite_c.so via Bazel (Method 1) ----------
+# Bazel is the primary build system for TF; produces a monolithic binary.
+# It builds for Linux (x86_64) by default; CMakeLists.txt uses find_library without ABI filter.
 if [ ! -f "$HERE/tflite_ref/lib/libtensorflowlite_c.so" ]; then
-  echo ">> Building libtensorflowlite_c.so from TensorFlow source (CMake + NDK, newest version v2.22.0-rc0, 32-bit + 64-bit) ..."
+  echo ">> Building libtensorflowlite_c.so from TensorFlow source (Bazel, newest version v2.22.0-rc0) ..."
   TF_BRANCH="v2.22.0-rc0"
   if ! git ls-remote --tags https://github.com/tensorflow/tensorflow.git "refs/tags/$TF_BRANCH" 2>/dev/null | grep -q "$TF_BRANCH"; then
     echo ">> Tag $TF_BRANCH not found; falling back to main ..."
@@ -27,31 +29,27 @@ if [ ! -f "$HERE/tflite_ref/lib/libtensorflowlite_c.so" ]; then
   rm -rf /tmp/tensorflow_src
   git clone --depth 1 --branch "$TF_BRANCH" https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src 2>/dev/null || git clone --depth 1 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src || { echo "ERROR: tensorflow clone failed"; exit 1; }
 
-  # Build for both ABIs using the Android NDK cross-compilation toolchain
-  for ABI in arm64-v8a armeabi-v7a; do
-    BUILD_DIR="/tmp/tflite_c_build_$ABI"
-    echo ">> Configuring CMake for Android ABI=$ABI ..."
-    rm -rf "$BUILD_DIR"
-    mkdir -p "$BUILD_DIR"
-    # Find flatc binary from installed flatbuffers-compiler or /usr/bin
-    FLATC_DIR=$(dirname $(which flatc 2>/dev/null || echo "/usr/bin/flatc"))
-    cmake -S /tmp/tensorflow_src/tensorflow/lite/c -B "$BUILD_DIR" \
-      -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
-      -DANDROID_ABI="$ABI" \
-      -DANDROID_PLATFORM=android-26 \
-      -DCMAKE_BUILD_TYPE=Release \
-      -DTFLITE_HOST_TOOLS_DIR="$FLATC_DIR" 2>&1 | tail -n10 || { echo "ERROR: cmake configure failed for $ABI"; exit 1; }
-    echo ">> Compiling libtensorflowlite_c.so for $ABI ..."
-    cmake --build "$BUILD_DIR" -j$(nproc) 2>&1 | tail -n10 || { echo "ERROR: cmake build failed for $ABI"; exit 1; }
-    BUILT_SO=$(find "$BUILD_DIR" -maxdepth 3 -name "libtensorflowlite_c.so" | head -n1)
-    if [ -f "$BUILT_SO" ]; then
-      cp "$BUILT_SO" "$HERE/tflite_ref/lib/libtensorflowlite_c.so"
-      echo ">> libtensorflowlite_c.so built and staged for $ABI ($(du -h "$BUILT_SO" | cut -f1))"
-    else
-      echo "ERROR: libtensorflowlite_c.so not produced for $ABI (looked in $BUILD_DIR)"
-      exit 1
-    fi
-  done
+  # Install bazelisk if bazel is not present
+  if ! command -v bazel >/dev/null 2>&1; then
+    echo ">> Installing bazelisk ..."
+    wget -q -O /tmp/bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.25.0/bazelisk-linux-amd64 || echo "bazelisk download skipped"
+    chmod +x /tmp/bazelisk || true
+    sudo mv /tmp/bazelisk /usr/local/bin/bazelisk 2>/dev/null || { echo "WARNING: could not install bazelisk"; }
+    sudo ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel 2>/dev/null || true
+  fi
+
+  echo ">> Running bazel build (monolithic) ..."
+  cd /tmp/tensorflow_src
+  BAZEL_CMD=$(command -v bazel 2>/dev/null || echo "/usr/local/bin/bazelisk")
+  $BAZEL_CMD build -c opt --config=monolithic //tensorflow/lite/c:libtensorflowlite_c.so 2>&1 | tail -n15 || { echo "ERROR: bazel build failed"; exit 1; }
+  BUILT_SO=$(find bazel-bin -maxdepth 4 -name "libtensorflowlite_c.so" | head -n1)
+  if [ -f "$BUILT_SO" ]; then
+    cp "$BUILT_SO" "$HERE/tflite_ref/lib/libtensorflowlite_c.so"
+    echo ">> libtensorflowlite_c.so built with Bazel (monolithic) and staged ($(du -h "$BUILT_SO" | cut -f1))"
+  else
+    echo "ERROR: libtensorflowlite_c.so not found after bazel build"
+    exit 1
+  fi
 fi
 
 if [ -f "$HERE/tflite_ref/lib/libtensorflowlite_c.so" ]; then

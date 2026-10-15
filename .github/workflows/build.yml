@@ -16,7 +16,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq cmake ninja-build build-essential python3 python3-pip wget curl unzip git flatbuffers-compiler
+          sudo apt-get install -y -qq cmake ninja-build build-essential python3 python3-pip wget curl unzip git
 
       - name: Setup Rust (updated for cargo-ndk compatibility, no invalid profile, no rust-cache)
         uses: actions-rust-lang/setup-rust-toolchain@v1
