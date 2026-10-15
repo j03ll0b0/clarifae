@@ -23,26 +23,15 @@ done
 [ -n "$LIBDF_DIR" ] && [ -f "$LIBDF_DIR/Cargo.toml" ] || { echo "ERROR: models/df/libDF not found (looked from $HERE and $PWD)"; exit 1; }
 echo ">> libDF source: $LIBDF_DIR"
 
-# cargo-ndk expects ABI names for --platform when using Android NDK (tested with cargo-ndk 4.1.2 / 3.5.4)
-# ABI name -> cargo-ndk --platform value
-# arm64-v8a -> aarch64-linux-android
-# armeabi-v7a -> armv7-linux-androideabi
-# x86_64 -> x86_64-linux-android
-CARGO_NDK_MAP="arm64-v8a=aarch64-linux-android armeabi-v7a=armv7-linux-androideabi x86_64=x86_64-linux-android"
+# cargo-ndk --platform expects Android API level (integer, e.g. 26), NOT ABI name or triple
 for ABI in arm64-v8a armeabi-v7a x86_64; do
-  # Map ABI to cargo-ndk triple
-  case "$ABI" in
-    arm64-v8a) PLATFORM="aarch64-linux-android" ;;
-    armeabi-v7a) PLATFORM="armv7-linux-androideabi" ;;
-    x86_64) PLATFORM="x86_64-linux-android" ;;
-  esac
-  echo ">> Building libdf for $ABI (platform=$PLATFORM) ..."
+  echo ">> Building libdf for $ABI ..."
   cd "$LIBDF_DIR"
   cargo ndk \
-    --platform "$PLATFORM" \
+    --platform 26 \
     --target-dir "target/ndk-$ABI" \
     --release \
-    -- build 2>&1 | tail -n5 || { echo "! cargo-ndk build failed for $ABI ($PLATFORM)"; exit 1; }
+    -- build 2>&1 | tail -n5 || { echo "! cargo-ndk build failed for $ABI (platform=26)"; exit 1; }
   echo ">> libdf (Android $ABI) -> $(pwd)/target/ndk-$ABI/release/libdf.so"
 done
 
