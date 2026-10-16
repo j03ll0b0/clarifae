@@ -23,16 +23,24 @@ done
 [ -n "$LIBDF_DIR" ] && [ -f "$LIBDF_DIR/Cargo.toml" ] || { echo "ERROR: models/df/libDF not found (looked from $HERE and $PWD)"; exit 1; }
 echo ">> libDF source: $LIBDF_DIR"
 
-# cargo-ndk --platform expects Android API level (integer, e.g. 26), NOT ABI name or triple
-for ABI in arm64-v8a armeabi-v7a x86_64; do
+# Explicit ABI -> Rust target mapping; correct cargo-ndk syntax order:
+# cargo ndk --target <TRIPLE> --platform <API> build --release
+for ABI in "arm64-v8a" "armeabi-v7a" "x86_64"; do
   echo ">> Building libdf for $ABI ..."
+
+  case $ABI in
+    "arm64-v8a")   TARGET="aarch64-linux-android" ;;
+    "armeabi-v7a") TARGET="armv7-linux-androideabi" ;;
+    "x86_64")      TARGET="x86_64-linux-android" ;;
+  esac
+
   cd "$LIBDF_DIR"
   cargo ndk \
-    --target-dir "target/ndk-$ABI" \
+    --target "$TARGET" \
     --platform 26 \
-    --release \
-    -- build 2>&1 | tail -n5 || { echo "! cargo-ndk build failed for $ABI (platform=26)"; exit 1; }
-  echo ">> libdf (Android $ABI) -> $(pwd)/target/ndk-$ABI/release/libdf.so"
+    --target-dir "target/ndk-$ABI" \
+    build --release 2>&1 | tail -n5 || { echo "! cargo-ndk build failed for $ABI (target=$TARGET platform=26)"; exit 1; }
+  echo ">> libdf (Android $ABI / $TARGET) -> $(pwd)/target/ndk-$ABI/release/libdf.so"
 done
 
 echo ">> Cross-compiled libdf complete. Use DF_DIR=.../target/ndk-<ABI> with build.sh."
