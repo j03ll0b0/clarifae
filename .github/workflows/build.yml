@@ -18,20 +18,24 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq cmake ninja-build build-essential python3 python3-pip wget curl unzip git
 
-      - name: Setup Rust (updated for cargo-ndk compatibility, no invalid profile, no rust-cache)
+      - name: Setup Rust (nightly for cargo-c / model 3; no rust-cache)
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
           override: true
           cache: false
 
-      - name: Add Rust Android targets for cargo-ndk
+      - name: Add Rust Android targets
         run: |
           rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
 
-      - name: Install cargo-ndk
+      - name: Install cargo-c (upstream build_capi approach for model 3)
         run: |
-          cargo install cargo-ndk 2>&1 | tail -n5 || cargo install cargo-ndk@3.5.4 2>&1 | tail -n5 || echo "cargo-ndk install attempted (may need newer rust)"
+          cargo install cargo-c || { echo "ERROR: cargo-c install failed"; exit 1; }
+
+      - name: Install cbindgen (for C header generation)
+        run: |
+          cargo install cbindgen || { echo "ERROR: cbindgen install failed"; exit 1; }
 
       - name: Download and install Android NDK r27c manually
         run: |

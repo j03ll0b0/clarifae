@@ -91,12 +91,25 @@ if [ ! -f "$HERE/tflite_ref/include/c_api.h" ]; then
 fi
 
 # ---------- DeepFilterNet libdf (mode 3) ----------
-echo ">> DeepFilterNet (mode 3): installing cargo-ndk ..."
-cargo install cargo-ndk 2>&1 | tail -n3 || cargo install cargo-ndk@3.5.4 2>&1 | tail -n3 || echo "  !! cargo-ndk install attempted (may need newer rust)"
+echo ">> DeepFilterNet (mode 3): ensuring cargo-c and cbindgen ..."
+if ! command -v cargo-cinstall >/dev/null 2>&1; then
+  cargo install cargo-c || { echo "ERROR: cargo-c install failed"; exit 1; }
+fi
+if ! command -v cbindgen >/dev/null 2>&1; then
+  cargo install cbindgen || { echo "ERROR: cbindgen install failed"; exit 1; }
+fi
 
 if [ -n "${ANDROID_NDK_HOME:-}" ] && [ -d "$ANDROID_NDK_HOME" ]; then
   echo ">> Building libdf for ARM 32-bit and 64-bit (+ x86_64) ..."
   bash "$HERE/scripts/build_df.sh" 2>&1 || { echo "ERROR: build_df.sh failed"; exit 1; }
+
+  # Generate C header using upstream cbindgen.toml
+  echo ">> Generating C header for libdf (CAPI) ..."
+  if [ -f "$HERE/cbindgen.toml" ]; then
+    (cd "$HERE/models/df/libDF" && cbindgen --config ../../cbindgen.toml --crate deep_filter --output deep_filter.h || echo "WARNING: cbindgen header generation skipped (non-fatal)")
+  else
+    echo "WARNING: cbindgen.toml not found at $HERE/cbindgen.toml; header generation skipped"
+  fi
 else
   echo "ERROR: ANDROID_NDK_HOME not set or missing; cannot build libdf"; exit 1
 fi
