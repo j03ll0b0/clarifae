@@ -63,21 +63,27 @@ for ABI in "arm64-v8a" "armeabi-v7a" "x86_64"; do
 
   cd "$LIBDF_DIR"
   # Upstream approach: cargo cinstall with capi feature, nightly preferred
-  cargo cinstall --profile=release-lto -p deep_filter \
-    --features=capi \
-    --target "$TARGET" \
-    --destdir="$DESTDIR" 2>&1 | tail -n10 || { echo "! cargo cinstall failed for $ABI (target=$TARGET)"; exit 1; }
+  # Use cargo-c via cargo-ndk wrapper: cbuild avoids host-system install panic
+  cargo ndk --target "$TARGET" --platform 26 \
+    cbuild --release --target-dir="./target" --features=capi -p deep_filter 2>&1 | tail -n20 || { echo "! cargo cbuild failed for $ABI (target=$TARGET)"; exit 1; }
 
-  # cargo-c puts .so under $DESTDIR/usr/lib/ or $DESTDIR/lib/ depending on version
-  # Find the produced .so and stage it for build.sh
-  SO_FILE=$(find "$DESTDIR" -name "libdf.so" -o -name "libdeep_filter.so" | head -n1 || true)
+  # cargo-c (via cargo-ndk) writes output to ./target/<TARGET>/release/
+  # Find the produced .so in the target dir and stage it for build.sh
+  BUILT_DIR="$LIBDF_DIR/target/$TARGET/release"
+  mkdir -p "$DEST_DIR"
+  SO_FILE=""
+  for candidate in "$BUILT_DIR/libdf.so" "$BUILT_DIR/libdeep_filter.so"; do
+    if [ -f "$candidate" ]; then
+      SO_FILE="$candidate"
+      break
+    fi
+  done
   if [ -n "$SO_FILE" ] && [ -f "$SO_FILE" ]; then
-    mkdir -p "$DEST_DIR"
     cp -f "$SO_FILE" "$DEST_DIR/libdf.so"
     echo ">> libdf ($ABI / $TARGET) -> $DEST_DIR/libdf.so ($(du -h "$SO_FILE" | cut -f1))"
   else
-    echo "! libdf.so not found in $DESTDIR; listing:"
-    find "$DESTDIR" -type f | head -n20 || true
+    echo "! libdf.so not found in $BUILT_DIR; listing:"
+    ls -la "$BUILT_DIR" | head -n20 || true
     exit 1
   fi
 done
