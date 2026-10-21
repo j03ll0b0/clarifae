@@ -50,13 +50,17 @@ for ABI in "arm64-v8a" "armeabi-v7a" "x86_64"; do
   mkdir -p "$DESTDIR"
 
   cd "$LIBDF_DIR"
-  # Upstream approach: cargo cinstall with capi feature, nightly preferred
-  # Use cargo-ndk as wrapper to inject NDK toolchain environment, then pass cbuild (cargo-c subcommand)
-  # Ejecución cruda sin ocultar flujos para evitar interrupciones de subprocesos (SIGPIPE / tail -n20)
-  cargo +stable ndk --target "$TARGET" --platform 26 cbuild --release --features=capi -p deep_filter --target-dir="./target" || { echo "! cargo cbuild failed for $ABI (target=$TARGET)"; exit 1; }
 
-  # cargo-c (via cargo-ndk) writes output to ./target/<TARGET>/release/
-  # Find the produced .so in the target dir and stage it for build.sh
+  # Pure cargo-ndk assembly phase (bypasses cargo-c conflict loops entirely)
+  cargo ndk --target "$TARGET" --platform 26 build --release --features=capi -p deep_filter --target-dir="./target" || {
+    echo "! Compilation failed for ABI: $ABI (target=$TARGET)";
+    exit 1;
+  }
+
+  # Standalone C header layout generation
+  mkdir -p "$DEST_DIR"
+  cbindgen --crate deep_filter --output "$DEST_DIR/df.h" || echo ">> Warning: cbindgen generation skipped"
+
   BUILT_DIR="$LIBDF_DIR/target/$TARGET/release"
   mkdir -p "$DEST_DIR"
   SO_FILE=""
