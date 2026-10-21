@@ -63,9 +63,9 @@ for ABI in "arm64-v8a" "armeabi-v7a" "x86_64"; do
 
   cd "$LIBDF_DIR"
   # Upstream approach: cargo cinstall with capi feature, nightly preferred
-  # cargo-c does not use cargo-ndk wrapper; use cargo cbuild directly
-  # --target-dir ensures output stays in workspace (no host-system panic)
-  cargo cbuild --target "$TARGET" --release --features=capi -p deep_filter --target-dir="./target" 2>&1 | tail -n20 || { echo "! cargo cbuild failed for $ABI (target=$TARGET)"; exit 1; }
+  # Use cargo-ndk as wrapper to inject NDK toolchain environment, then pass cbuild (cargo-c subcommand)
+  cargo ndk --target "$TARGET" --platform 26 \
+    cbuild --release --features=capi -p deep_filter --target-dir="./target" 2>&1 | tail -n20 || { echo "! cargo cbuild failed for $ABI (target=$TARGET)"; exit 1; }
 
   # cargo-c (via cargo-ndk) writes output to ./target/<TARGET>/release/
   # Find the produced .so in the target dir and stage it for build.sh

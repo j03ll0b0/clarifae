@@ -33,6 +33,10 @@ jobs:
         run: |
           cargo install cargo-c || { echo "ERROR: cargo-c install failed"; exit 1; }
 
+      - name: Install cargo-ndk (Android wrapper)
+        run: |
+          cargo install cargo-ndk || cargo install cargo-ndk@3.5.4 || { echo "ERROR: cargo-ndk install failed"; exit 1; }
+
       - name: Install cbindgen (for C header generation)
         run: |
           cargo install cbindgen || { echo "ERROR: cbindgen install failed"; exit 1; }
