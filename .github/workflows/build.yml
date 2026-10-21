@@ -29,7 +29,7 @@ jobs:
       - name: Install Android Cargo Tools Quick
         run: |
           # Pre-built binaries to skip long source builds
-          cargo binstall -y cargo-c cargo-ndk cbindgen || cargo install cargo-c || cargo install cargo-c
+          rustup run stable cargo binstall -y cargo-c cargo-ndk cbindgen || cargo install cargo-c || cargo install cargo-c
           cargo install cargo-ndk || cargo install cargo-ndk@3.5.4 || { echo "ERROR: cargo-ndk install failed"; exit 1; }
           cargo install cbindgen || { echo "ERROR: cbindgen install failed"; exit 1; }
 
