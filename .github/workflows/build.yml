@@ -18,16 +18,13 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq cmake ninja-build build-essential python3 python3-pip wget curl unzip git pkg-config libssl-dev perl libclang-dev llvm
 
-      - name: Setup Rust (nightly for cargo-c / model 3; no rust-cache)
+      - name: Setup Rust (nightly with Android targets)
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: nightly
+          targets: aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
           override: true
           cache: false
-
-      - name: Add Rust Android targets
-        run: |
-          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
 
       - name: Install cargo-c (upstream build_capi approach for model 3)
         run: |

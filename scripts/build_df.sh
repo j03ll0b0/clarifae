@@ -30,22 +30,7 @@ if ! command -v cargo-cinstall >/dev/null 2>&1; then
   cargo install cargo-c || { echo "ERROR: cargo-c install failed"; exit 1; }
 fi
 
-# Use .cargo/config.toml for Android linkers (must exist in libDF dir)
-if [ ! -f "$LIBDF_DIR/.cargo/config.toml" ]; then
-  echo ">> Creating .cargo/config.toml in $LIBDF_DIR ..."
-  mkdir -p "$LIBDF_DIR/.cargo"
-  cat > "$LIBDF_DIR/.cargo/config.toml" <<EOF
-[target.aarch64-linux-android]
-linker = "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang"
-
-[target.armv7-linux-androideabi]
-linker = "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/arm-linux-androideabi26-clang"
-
-[target.x86_64-linux-android]
-linker = "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android26-clang"
-EOF
-fi
-
+# cargo-ndk gestiona los linkers dinámicamente; NO creamos .cargo/config.toml manual
 for ABI in "arm64-v8a" "armeabi-v7a" "x86_64"; do
   echo ">> Building libdf CAPI for $ABI ..."
 
