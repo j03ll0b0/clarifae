@@ -31,6 +31,9 @@ if ! command -v cargo-cinstall >/dev/null 2>&1; then
 fi
 
 # cargo-ndk gestiona los linkers dinámicamente; NO creamos .cargo/config.toml manual
+# Limpiar configuraciones locales previas que puedan interferir con cargo-ndk
+rm -rf "$LIBDF_DIR/.cargo/config.toml"
+
 for ABI in "arm64-v8a" "armeabi-v7a" "x86_64"; do
   echo ">> Building libdf CAPI for $ABI ..."
 
@@ -49,8 +52,8 @@ for ABI in "arm64-v8a" "armeabi-v7a" "x86_64"; do
   cd "$LIBDF_DIR"
   # Upstream approach: cargo cinstall with capi feature, nightly preferred
   # Use cargo-ndk as wrapper to inject NDK toolchain environment, then pass cbuild (cargo-c subcommand)
-  cargo ndk --target "$TARGET" --platform 26 \
-    cbuild --release --features=capi -p deep_filter --target-dir="./target" 2>&1 | tail -n20 || { echo "! cargo cbuild failed for $ABI (target=$TARGET)"; exit 1; }
+  # Ejecución cruda sin ocultar flujos para evitar interrupciones de subprocesos (SIGPIPE / tail -n20)
+  cargo ndk --target "$TARGET" --platform 26 cbuild --release --features=capi -p deep_filter --target-dir="./target" || { echo "! cargo cbuild failed for $ABI (target=$TARGET)"; exit 1; }
 
   # cargo-c (via cargo-ndk) writes output to ./target/<TARGET>/release/
   # Find the produced .so in the target dir and stage it for build.sh
