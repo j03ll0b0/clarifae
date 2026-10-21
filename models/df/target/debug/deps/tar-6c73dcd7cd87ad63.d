@@ -1,0 +1,12 @@
+/Users/usuario/workspace/clarifae/models/df/target/debug/deps/tar-6c73dcd7cd87ad63.d: /Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/lib.rs /Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/archive.rs /Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/builder.rs /Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/entry.rs /Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/entry_type.rs /Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/error.rs /Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/header.rs /Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/pax.rs
+
+/Users/usuario/workspace/clarifae/models/df/target/debug/deps/libtar-6c73dcd7cd87ad63.rmeta: /Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/lib.rs /Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/archive.rs /Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/builder.rs /Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/entry.rs /Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/entry_type.rs /Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/error.rs /Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/header.rs /Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/pax.rs
+
+/Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/lib.rs:
+/Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/archive.rs:
+/Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/builder.rs:
+/Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/entry.rs:
+/Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/entry_type.rs:
+/Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/error.rs:
+/Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/header.rs:
+/Users/usuario/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tar-0.4.40/src/pax.rs:

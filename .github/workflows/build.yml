@@ -16,7 +16,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq cmake ninja-build build-essential python3 python3-pip wget curl unzip git
+          sudo apt-get install -y -qq cmake ninja-build build-essential python3 python3-pip wget curl unzip git pkg-config libssl-dev perl libclang-dev llvm
 
       - name: Setup Rust (nightly for cargo-c / model 3; no rust-cache)
         uses: actions-rust-lang/setup-rust-toolchain@v1
