@@ -87,10 +87,6 @@ jobs:
           # Try to download a working Android TFLite C library reference; if unavailable, reference directory is set for user to complete
           echo "Reference TFLite SDK at $PWD/tflite_ref (needs libtensorflowlite_c.so + include/c_api.h for full build)" > tflite_ref/lib/README
 
-      - name: Install Android Targets for Rust
-        run: |
-          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
-
       - name: Prepare binaries for modes 2 & 3 (32-bit + 64-bit)
         env:
           ANDROID_NDK_HOME: /opt/android-ndk
