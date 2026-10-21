@@ -62,6 +62,8 @@ jobs:
         env:
           # Heredamos el NDK sincronizado desde el paso Export
           ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+          # FORCE ALL DOWNSTREAM TOOLS TO USE THE INSTALLED STABLE TARGETS:
+          RUSTUP_TOOLCHAIN: stable
         run: |
           bash scripts/prepare_modes_2_3.sh 2>&1
 
@@ -69,6 +71,7 @@ jobs:
         env:
           # Heredamos el NDK sincronizado desde el paso Export
           ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+          RUSTUP_TOOLCHAIN: stable
           CLARIFAE_WITH_DTLN: ON
           CLARIFAE_WITH_DF: ON
           TFLITE_DIR: ${{ github.workspace }}/tflite_ref
