@@ -33,34 +33,10 @@ jobs:
           cargo install cargo-ndk || cargo install cargo-ndk@3.5.4 || { echo "ERROR: cargo-ndk install failed"; exit 1; }
           cargo install cbindgen || { echo "ERROR: cbindgen install failed"; exit 1; }
 
-      - name: Download and install Android NDK r27c manually
+      - name: Export NDK paths dynamically
         run: |
-          set -euo pipefail
-          sudo mkdir -p /opt/android-ndk
-          echo ">> Downloading NDK r27c (expect ~500MB) ..."
-          sudo wget --show-progress -O /tmp/ndk.zip https://dl.google.com/android/repository/android-ndk-r27c-linux.zip || { echo "ERROR: NDK download failed"; exit 1; }
-          FILESIZE=$(stat -c%s /tmp/ndk.zip)
-          echo ">> Downloaded size: $FILESIZE bytes"
-          [ "$FILESIZE" -gt 300000000 ] || { echo "ERROR: /tmp/ndk.zip too small ($FILESIZE bytes), likely corrupt/incomplete"; exit 1; }
-          echo ">> Verifying zip contents quickly ..."
-          python3 -m zipfile -l /tmp/ndk.zip >/dev/null 2>&1 || unzip -l /tmp/ndk.zip | head -n5 || { echo "ERROR: zip appears corrupt or unreadable"; exit 1; }
-          # Ensure at least one key file is listed (fast check, not full -t)
-          unzip -l /tmp/ndk.zip 2>/dev/null | grep -q "build/cmake/android.toolchain.cmake" || { echo "WARNING: zip may be incomplete (key file not listed)"; }
-          echo ">> Unzipping ..."
-          sudo rm -rf /opt/android-ndk-r27c
-          sudo unzip -o /tmp/ndk.zip -d /opt/ || { echo "ERROR: unzip failed"; exit 1; }
-          [ -d /opt/android-ndk-r27c ] || { echo "ERROR: /opt/android-ndk-r27c missing after unzip"; ls -la /opt/; exit 1; }
-          echo ">> Moving to /opt/android-ndk ..."
-          sudo rm -rf /opt/android-ndk
-          sudo mv /opt/android-ndk-r27c /opt/android-ndk || { echo "ERROR: mv failed"; exit 1; }
-          echo ">> Verifying NDK contents ..."
-          [ -f /opt/android-ndk/build/cmake/android.toolchain.cmake ] || { echo "ERROR: toolchain file missing"; ls -la /opt/android-ndk/; exit 1; }
-          [ -d /opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin ] || { echo "ERROR: llvm toolchain missing"; exit 1; }
-          echo ">> NDK ready at /opt/android-ndk ($(du -sh /opt/android-ndk | cut -f1))"
-
-      - name: Export NDK path
-        run: |
-          echo "ANDROID_NDK_HOME=/opt/android-ndk" >> $GITHUB_ENV
+          # Sincronizamos las variables del NDK para evitar el conflicto detectado por cargo-ndk
+          echo "ANDROID_NDK_HOME=${ANDROID_NDK_ROOT}" >> $GITHUB_ENV
           echo "TFLITE_DIR=${{ github.workspace }}/tflite_ref" >> $GITHUB_ENV
           echo "DF_DIR=${{ github.workspace }}/models/df/libDF/target/ndk-arm64-v8a/release" >> $GITHUB_ENV
 
@@ -84,13 +60,15 @@ jobs:
 
       - name: Prepare binaries for modes 2 & 3 (32-bit + 64-bit)
         env:
-          ANDROID_NDK_HOME: /opt/android-ndk
+          # Heredamos el NDK sincronizado desde el paso Export
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
         run: |
           bash scripts/prepare_modes_2_3.sh 2>&1
 
       - name: Build with optional backends enabled
         env:
-          ANDROID_NDK_HOME: /opt/android-ndk
+          # Heredamos el NDK sincronizado desde el paso Export
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
           CLARIFAE_WITH_DTLN: ON
           CLARIFAE_WITH_DF: ON
           TFLITE_DIR: ${{ github.workspace }}/tflite_ref
