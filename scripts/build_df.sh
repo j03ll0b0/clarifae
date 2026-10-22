@@ -51,16 +51,24 @@ for ABI in "arm64-v8a" "armeabi-v7a" "x86_64"; do
 
   cd "$LIBDF_DIR"
 
-  # Pure cargo-ndk assembly phase (bypasses cargo-c conflict loops entirely)
-  cargo ndk --target "$TARGET" --platform 26 build --release --features=capi -p deep_filter --target-dir="./target" || {
+  # Convertimos el nombre de la variable de entorno del linker al formato de Cargo
+  CARGO_TARGET_ENV=$(echo "CARGO_TARGET_${TARGET}_LINKER" | tr '-' '_' | tr '[:lower:]' '[:upper:]')
+  # Construimos la ruta absoluta al enlazador de Clang del NDK preinstalado de GitHub
+  ANDROID_LINKER="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/${LINKER_ARCH}-linux-android26-clang"
+
+  echo ">> Using Linker: $ANDROID_LINKER"
+
+  # Ejecutamos la compilación pura y nativa de Cargo sin intermediarios problemáticos
+  env "${CARGO_TARGET_ENV}"="$ANDROID_LINKER" \
+      cargo build --target "$TARGET" --release --features=capi -p deep_filter --target-dir="./target" || {
     echo "! Compilation failed for ABI: $ABI (target=$TARGET)";
     exit 1;
   }
 
-  # Standalone C header layout generation
-  mkdir -p "$DEST_DIR"
+  # Generamos los archivos de cabecera necesarios manualmente con cbindgen
   cbindgen --crate deep_filter --output "$DEST_DIR/df.h" || echo ">> Warning: cbindgen generation skipped"
 
+  # Ubicamos la librería .so generada
   BUILT_DIR="$LIBDF_DIR/target/$TARGET/release"
   mkdir -p "$DEST_DIR"
   SO_FILE=""
