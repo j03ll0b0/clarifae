@@ -70,9 +70,9 @@ for ABI in "arm64-v8a" "armeabi-v7a" "x86_64"; do
   export "${CC_TARGET_ENV}"="$ANDROID_LINKER"
   export CC="$ANDROID_LINKER"
 
-  # Ejecutamos la compilación con rustup para que encuentre los targets correctamente
-  env "${CARGO_TARGET_ENV}"="$ANDROID_LINKER" \
-      rustup run stable cargo build --target "$TARGET" --release --features=capi -p deep_filter --target-dir="./target" || {
+  # Override strict warnings-to-errors rule for DeepFilterNet compilation
+  env RUSTFLAGS="-A warnings" \
+    rustup run stable cargo build --target "$TARGET" --release --features=capi -p deep_filter --target-dir="./target" || {
     echo "! Compilation failed for ABI: $ABI (target=$TARGET)";
     exit 1;
   }
