@@ -1,12 +1,13 @@
 #!/bin/bash
 # Build DeepFilterNet libdf (C-FFI / CAPI) CROSS-COMPILED for Android ABIs
-# Bypasses all faulty cargo-c/cargo-ndk sub-shell wrapper traps.
+# Uses upstream approach: cargo-c + nightly + .cargo/config.toml linkers
+# Requires: cargo-c installed, ANDROID_NDK_HOME set, .cargo/config.toml present
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-NDK="${ANDROID_NDK_HOME:?Set ANDROID_NDK_HOME to Android NDK}"
+NDK="${ANDROID_NDK_HOME:?Set ANDROID_NDK_HOME to Android NDK r27+}"
 
 echo ">> NDK: $NDK"
-echo ">> Building libdf for Android ABIs: arm64-v8a armeabi-v7a x86_64 ..."
+echo ">> Building libdf (CAPI) for Android ABIs: arm64-v8a armeabi-v7a x86_64 ..."
 
 # Find libDF directory robustly
 LIBDF_DIR=""
@@ -23,55 +24,56 @@ done
 [ -n "$LIBDF_DIR" ] && [ -f "$LIBDF_DIR/Cargo.toml" ] || { echo "ERROR: models/df/libDF not found"; exit 1; }
 echo ">> libDF source: $LIBDF_DIR"
 
-cd "$LIBDF_DIR"
+# Ensure cargo-c is available
+if ! command -v cargo-cinstall >/dev/null 2>&1; then
+  echo ">> Installing cargo-c ..."
+  cargo install cargo-c || { echo "ERROR: cargo-c install failed"; exit 1; }
+fi
 
-# FORCE CACHE PURGE: Wipe out historical compilation layers to force complete re-evaluation
+# cargo-ndk gestiona los linkers dinámicamente; NO creamos .cargo/config.toml manual
+# FORCE CACHE PURGE: Wipe out old target data to ensure standard libraries are re-evaluated from scratch
 rm -rf .cargo/config.toml target/
 
 for ABI in "arm64-v8a" "armeabi-v7a" "x86_64"; do
-  echo ">> Compiling libdf CAPI binaries natively for $ABI ..."
+  echo ">> Building libdf CAPI for $ABI ..."
 
   case $ABI in
-    "arm64-v8a")
-      TARGET="aarch64-linux-android"
-      LINKER_ARCH="aarch64"
-      ;;
-    "armeabi-v7a")
-      TARGET="armv7-linux-androideabi"
-      LINKER_ARCH="arm"
-      ;;
-    "x86_64")
-      TARGET="x86_64-linux-android"
-      LINKER_ARCH="x86_64"
-      ;;
+    "arm64-v8a")   TARGET="aarch64-linux-android"; LINKER_ARCH="aarch64" ;;
+    "armeabi-v7a") TARGET="armv7-linux-androideabi"; LINKER_ARCH="arm" ;;
+    "x86_64")      TARGET="x86_64-linux-android"; LINKER_ARCH="x86_64" ;;
   esac
 
   DEST_DIR="$LIBDF_DIR/target/ndk-$ABI/release"
-  rm -rf "$LIBDF_DIR/staging-$ABI"
-  mkdir -p "$DEST_DIR"
+  DESTDIR="$LIBDF_DIR/staging-$ABI"
 
-  # Path to the cross-compiler tool inside the runner's native Android NDK layout
+  rm -rf "$DESTDIR"
+  mkdir -p "$DESTDIR"
+
+  cd "$LIBDF_DIR"
+
+  # Convertimos el nombre de la variable de entorno del linker al formato de Cargo
+  CARGO_TARGET_ENV=$(echo "CARGO_TARGET_${TARGET}_LINKER" | tr '-' '_' | tr '[:lower:]' '[:upper:]')
+  # Construimos la ruta absoluta al enlazador de Clang del NDK preinstalado de GitHub
   ANDROID_LINKER="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/${LINKER_ARCH}-linux-android26-clang"
 
-  # Convert target string to Cargo target linker naming specifications
-  # Example: CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER
-  CARGO_TARGET_ENV=$(echo "CARGO_TARGET_${TARGET}_LINKER" | tr '-' '_' | tr '[:lower:]' '[:upper:]')
+  echo ">> Using Linker: $ANDROID_LINKER"
 
-  echo ">> Injecting environment linker: $ANDROID_LINKER"
+  # Asegurar targets instalados antes de compilar
+  rustup target add "$TARGET" || true
 
-  # Pure, explicit cross-compilation block using direct rustup target passing
-  export "$CARGO_TARGET_ENV"="$ANDROID_LINKER"
-
-  rustup run stable cargo build --target "$TARGET" --release --features=capi -p deep_filter --target-dir="./target" || {
-    echo "! Core cargo compilation failed for ABI: $ABI (target=$TARGET)";
+  # Ejecutamos la compilación con rustup para que encuentre los targets correctamente
+  env "${CARGO_TARGET_ENV}"="$ANDROID_LINKER" \
+      rustup run stable cargo build --target "$TARGET" --release --features=capi -p deep_filter --target-dir="./target" || {
+    echo "! Compilation failed for ABI: $ABI (target=$TARGET)";
     exit 1;
   }
 
-  # Build structural C header bindings via standalone cbindgen
-  cbindgen --crate deep_filter --output "$DEST_DIR/df.h" || echo ">> cbindgen skipped"
+  # Generamos los archivos de cabecera necesarios manualmente con cbindgen
+  cbindgen --crate deep_filter --output "$DEST_DIR/df.h" || echo ">> Warning: cbindgen generation skipped"
 
-  # Map compiled library (.so) output binary layout
+  # Ubicamos la librería .so generada
   BUILT_DIR="$LIBDF_DIR/target/$TARGET/release"
+  mkdir -p "$DEST_DIR"
   SO_FILE=""
   for candidate in "$BUILT_DIR/libdf.so" "$BUILT_DIR/libdeep_filter.so"; do
     if [ -f "$candidate" ]; then
@@ -79,14 +81,14 @@ for ABI in "arm64-v8a" "armeabi-v7a" "x86_64"; do
       break
     fi
   done
-
   if [ -n "$SO_FILE" ] && [ -f "$SO_FILE" ]; then
     cp -f "$SO_FILE" "$DEST_DIR/libdf.so"
-    echo ">> Success: libdf ($ABI / $TARGET) -> $DEST_DIR/libdf.so ($(du -h "$SO_FILE" | cut -f1))"
+    echo ">> libdf ($ABI / $TARGET) -> $DEST_DIR/libdf.so ($(du -h "$SO_FILE" | cut -f1))"
   else
-    echo "! ERROR: Shared library binary missing inside target directory: $BUILT_DIR"
+    echo "! libdf.so not found in $BUILT_DIR; listing:"
+    ls -la "$BUILT_DIR" | head -n20 || true
     exit 1
   fi
 done
 
-echo ">> Cross-compiled libdf complete. Build pipeline cleared."
+echo ">> Cross-compiled libdf (CAPI) complete. DF_DIR=$LIBDF_DIR/target/ndk-<ABI>/release"
