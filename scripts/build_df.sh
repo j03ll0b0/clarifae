@@ -58,7 +58,12 @@ for ABI in "arm64-v8a" "armeabi-v7a" "x86_64"; do
   CC_TARGET_ENV=$(echo "CC_${TARGET}" | tr '-' '_')
 
   # Path to the cross-compiler tool inside the runner's native Android NDK layout
-  ANDROID_LINKER="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/${LINKER_ARCH}-linux-android26-clang"
+  # We fix the 32-bit ARM tool naming definition for modern NDK matching guidelines
+  if [ "$ABI" = "armeabi-v7a" ]; then
+    ANDROID_LINKER="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi26-clang"
+  else
+    ANDROID_LINKER="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/${LINKER_ARCH}-linux-android26-clang"
+  fi
 
   echo ">> Injecting environment linker and C compilers: $ANDROID_LINKER"
 
@@ -70,8 +75,8 @@ for ABI in "arm64-v8a" "armeabi-v7a" "x86_64"; do
   export "${CC_TARGET_ENV}"="$ANDROID_LINKER"
   export CC="$ANDROID_LINKER"
 
-  # Override strict warnings-to-errors rule for DeepFilterNet compilation
-  env RUSTFLAGS="-A warnings" \
+  # COMBINED CORRECT SYNTAX: We pass both the dynamic link variable and the warning silencer wrapper together
+  env "${CARGO_TARGET_ENV}"="$ANDROID_LINKER" RUSTFLAGS="-A warnings" \
     rustup run stable cargo build --target "$TARGET" --release --features=capi -p deep_filter --target-dir="./target" || {
     echo "! Compilation failed for ABI: $ABI (target=$TARGET)";
     exit 1;
