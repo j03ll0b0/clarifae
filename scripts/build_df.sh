@@ -51,15 +51,24 @@ for ABI in "arm64-v8a" "armeabi-v7a" "x86_64"; do
 
   cd "$LIBDF_DIR"
 
-  # Convertimos el nombre de la variable de entorno del linker al formato de Cargo
+  # Convert target string to Cargo target linker naming specifications
   CARGO_TARGET_ENV=$(echo "CARGO_TARGET_${TARGET}_LINKER" | tr '-' '_' | tr '[:lower:]' '[:upper:]')
-  # Construimos la ruta absoluta al enlazador de Clang del NDK preinstalado de GitHub
+  # Generar el nombre de la variable CC específica para la arquitectura de Rust
+  # Ejemplo: CC_AARCH64_LINUX_ANDROID
+  CC_TARGET_ENV=$(echo "CC_${TARGET}" | tr '-' '_')
+
+  # Path to the cross-compiler tool inside the runner's native Android NDK layout
   ANDROID_LINKER="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/${LINKER_ARCH}-linux-android26-clang"
 
-  echo ">> Using Linker: $ANDROID_LINKER"
+  echo ">> Injecting environment linker and C compilers: $ANDROID_LINKER"
 
   # Asegurar targets instalados antes de compilar
   rustup target add "$TARGET" || true
+
+  # EXPORTACIONES CRUCIALES: Forzamos a crates como tract-linalg a encontrar el Clang del NDK
+  export "${CARGO_TARGET_ENV}"="$ANDROID_LINKER"
+  export "${CC_TARGET_ENV}"="$ANDROID_LINKER"
+  export CC="$ANDROID_LINKER"
 
   # Ejecutamos la compilación con rustup para que encuentre los targets correctamente
   env "${CARGO_TARGET_ENV}"="$ANDROID_LINKER" \
