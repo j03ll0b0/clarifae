@@ -72,25 +72,22 @@ with open(path, "w") as f:
     f.write(content)
 '
 
-# Inyectar kTfLiteNonCpu solo en archivos .h (evita romper cadenas en .cc)
+# Inyectar kTfLiteNonCpu en archivos .h de enums (common.h + tflite_types.h)
 python3 -c '
-import os, re
-for root, dirs, files in os.walk("/tmp/tensorflow_src/tensorflow/lite"):
-    for file in files:
-        if file.endswith(".h"):
-            path = os.path.join(root, file)
-            try:
-                with open(path, "r") as f:
-                    content = f.read()
-                if "TfLiteAllocationType" in content and "kTfLiteDynamic" in content and "kTfLiteNonCpu" not in content:
-                    pattern = r"(kTfLiteDynamic\s*(?:=\s*\w+)?\s*,)"
-                    new_content = re.sub(pattern, r"\1\n  kTfLiteNonCpu,", content)
-                    if new_content != content:
-                        with open(path, "w") as f:
-                            f.write(new_content)
-                        print(f"Inyectado kTfLiteNonCpu en {path}")
-            except Exception:
-                pass
+for path in [
+    "/tmp/tensorflow_src/tensorflow/lite/core/c/common.h",
+    "/tmp/tensorflow_src/tensorflow/compiler/mlir/lite/core/c/tflite_types.h",
+]:
+    try:
+        with open(path, "r") as f:
+            content = f.read()
+        if "kTfLiteDynamic" in content and "kTfLiteNonCpu" not in content:
+            content = content.replace("kTfLiteDynamic", "kTfLiteDynamic,\n  kTfLiteNonCpu")
+            with open(path, "w") as f:
+                f.write(content)
+            print(f"Inyectado kTfLiteNonCpu en {path}")
+    except Exception as e:
+        print(f"No parcheado {path}: {e}")
 '
 
 # Usar CMake + NDK (en vez de Bazel que falla con NDK r27 en CI) para compilar TFLite C API
