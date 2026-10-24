@@ -39,6 +39,9 @@ sed -i '/bool MMapHandle::UnlockMemory()/,/}/d' /tmp/tensorflow_src/tensorflow/l
 sed -i '/case TensorType_INT2:/,/break;/d' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
 sed -i '/case TensorType_UINT4:/,/break;/d' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
 
+# Calificar Operator como tflite::Operator (compatibilidad FlatBuffers v25)
+sed -i 's/\bconst Operator\*/const tflite::Operator*/g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
+
 # Usar CMake + NDK (en vez de Bazel que falla con NDK r27 en CI) para compilar TFLite C API
 # Esto evita configure.py / .bazelrc / Bazel version conflicts.
 for ABI in arm64-v8a armeabi-v7a x86_64; do
