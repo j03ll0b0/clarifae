@@ -16,10 +16,32 @@ if ! git ls-remote --tags https://github.com/tensorflow/tensorflow.git "refs/tag
   echo ">> Tag $TF_BRANCH not found; falling back to main ..."
   TF_BRANCH="main"
 fi
+mkdir -p "$HERE/tflite_ref/lib/arm64-v8a" "$HERE/tflite_ref/lib/armeabi-v7a" "$HERE/tflite_ref/lib/x86_64" "$HERE/tflite_ref/include"
+echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF source v2.22.0-rc0 (Bazel + NDK config) ..."
+TF_BRANCH="v2.22.0-rc0"
+if ! git ls-remote --tags https://github.com/tensorflow/tensorflow.git "refs/tags/$TF_BRANCH" 2>/dev/null | grep -q "$TF_BRANCH"; then
+  echo ">> Tag $TF_BRANCH not found; falling back to main ..."
+  TF_BRANCH="main"
+fi
+
+# Clonar TF source (necesario para configure.py y c_api.h)
 rm -rf /tmp/tensorflow_src
 git clone --depth 1 --branch "$TF_BRANCH" https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src 2>/dev/null || git clone --depth 1 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src || { echo "ERROR: tensorflow clone failed"; exit 1; }
 
-# Install bazelisk if bazel is not present
+# Configurar TensorFlow inyectando el NDK (configura .bazelrc con Android toolchains)
+export PYTHON_BIN_PATH=$(which python3)
+export USE_DEFAULT_PYTHON_LIB_PATH=1
+if [ -n "${ANDROID_NDK_HOME:-}" ] && [ -d "$ANDROID_NDK_HOME" ]; then
+  echo ">> Configuring TensorFlow for Android (NDK: $ANDROID_NDK_HOME) ..."
+  cd /tmp/tensorflow_src
+  # Automático: rechaza opciones no necesarias, confirma NDK
+  # Configurar automáticamente (archivo de respuestas temporal)
+  RESP="/tmp/tf_config_resp_$$"
+  printf 'n\nn\nn\nn\ny\n%s\n/usr/local/lib/android/sdk\n26\n34\n36.0.0\n' "$ANDROID_NDK_HOME" > "$RESP"
+  PYTHON_BIN_PATH=$(which python3) USE_DEFAULT_PYTHON_LIB_PATH=1 python3 configure.py < "$RESP" 2>/dev/null || { echo "WARNING: configure.py falló (puede ser normal en CI)"; }
+fi
+
+# Instalar bazelisk si bazel no está presente (requerido para Bazel build)
 if ! command -v bazel >/dev/null 2>&1; then
   echo ">> Installing bazelisk ..."
   wget -q -O /tmp/bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.25.0/bazelisk-linux-amd64 || echo "bazelisk download skipped"
@@ -28,36 +50,33 @@ if ! command -v bazel >/dev/null 2>&1; then
   sudo ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel 2>/dev/null || true
 fi
 
-# Build libtensorflowlite_c.so for each Android ABI using Bazel with NDK target
-# Each ABI gets its own .so; CMake will pick the one matching ANDROID_ABI
+# Compilar libtensorflowlite_c.so para cada ABI de Android con Bazel + config oficial
 for ABI in arm64-v8a armeabi-v7a x86_64; do
-  echo ">> Building libtensorflowlite_c.so for Android ABI $ABI (Bazel + NDK target) ..."
+  echo ">> Compilando libtensorflowlite_c.so para Android ABI $ABI (Bazel + Android Config) ..."
+  case $ABI in
+    "arm64-v8a") BAZEL_ANDROID_CONFIG="--config=android_arm64" ;;
+    "armeabi-v7a") BAZEL_ANDROID_CONFIG="--config=android_arm" ;;
+    "x86_64") BAZEL_ANDROID_CONFIG="--config=android_x86_64" ;;
+  esac
+
   cd /tmp/tensorflow_src
   BAZEL_CMD=$(command -v bazel 2>/dev/null || echo "/usr/local/bin/bazelisk")
-  # --cpu selects the architecture target; --config=monolithic keeps the C API library intact
-  # We run one build per ABI so each .so is a native Android binary (not Linux host x86_64)
-  case $ABI in
-    "arm64-v8a") CPU="aarch64" ;;
-    "armeabi-v7a") CPU="armeabi-v7a" ;;
-    "x86_64") CPU="x86_64" ;;
-  esac
-  # Note: --config=monolithic is kept; Bazel builds the .so for the specified --cpu.
-  # The output .so lands in bazel-bin/tensorflow/lite/c/libtensorflowlite_c.so for that target.
-  $BAZEL_CMD build -c opt --config=monolithic --cpu="$CPU" //tensorflow/lite/c:libtensorflowlite_c.so 2>&1 | tail -n20 || echo ">> Bazel build for $ABI completed (check output)"
+  # --config=monolithic mantiene la librería C API completa; $BAZEL_ANDROID_CONFIG activa el NDK
+  $BAZEL_CMD build -c opt --config=monolithic $BAZEL_ANDROID_CONFIG //tensorflow/lite/c:libtensorflowlite_c.so 2>&1 | tail -n20 || echo ">> Bazel build para $ABI completado (revisar salida)"
 
+  # Localizar y estagear el .so resultante en la carpeta del ABI
   BUILT_SO=$(find -L /tmp/tensorflow_src/bazel-bin -maxdepth 6 -name "libtensorflowlite_c.so" | head -n1)
-  # Because Bazel may keep the same output path across runs, we verify the file exists and stage per ABI
   if [ -f "$BUILT_SO" ]; then
+    mkdir -p "$HERE/tflite_ref/lib/$ABI"
     cp -f "$BUILT_SO" "$HERE/tflite_ref/lib/$ABI/libtensorflowlite_c.so"
-    echo ">> libtensorflowlite_c.so ($ABI) built with Bazel and staged ($(du -h "$BUILT_SO" | cut -f1))"
+    echo ">> libtensorflowlite_c.so ($ABI) compilado con éxito y estaged ($(du -h "$BUILT_SO" | cut -f1))"
   else
-    echo ">> WARNING: libtensorflowlite_c.so not found after bazel build for $ABI; checking bazel-bin ..."
-    ls -la /tmp/tensorflow_src/bazel-bin/tensorflow/lite/c/ 2>/dev/null || echo "    (directory missing)"
-    # Non-fatal for now; build proceeds so other ABIs can complete
+    echo "ERROR: libtensorflowlite_c.so no encontrado para el ABI $ABI"
+    exit 1
   fi
 done
 
-# c_api.h must match the .so version (v2.22.0-rc0 / same source)
+# c_api.h: extraer del repo clonado (coincide con v2.22.0-rc0)
 if [ -f /tmp/tensorflow_src/tensorflow/lite/c/c_api.h ]; then
   cp /tmp/tensorflow_src/tensorflow/lite/c/c_api.h "$HERE/tflite_ref/include/c_api.h"
   echo ">> c_api.h staged from tensorflow source ($TF_BRANCH)"
