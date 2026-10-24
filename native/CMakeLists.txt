@@ -97,3 +97,4 @@ if(CLARIFAE_WITH_DF)
   message(STATUS "Clarifae: DeepFilterNet backend enabled (${DF_LIB})")
 endif()
 # Trigger: cambio bezel -> cmake (build CMake + NDK), trigger CI
+# Trigger CI: run con -j2 aplicado (4ac90bd)
