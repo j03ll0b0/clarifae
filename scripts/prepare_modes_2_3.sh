@@ -24,6 +24,9 @@ if ! git ls-remote --tags https://github.com/tensorflow/tensorflow.git "refs/tag
   TF_BRANCH="main"
 fi
 
+# Instalar flatc en el host para cross-compile con CMake
+sudo apt-get update && sudo apt-get install -y flatbuffers-compiler || { echo "WARNING: flatbuffers-compiler install failed"; }
+
 # Clonar TF source (necesario para CMake y c_api.h)
 rm -rf /tmp/tensorflow_src
 git clone --depth 1 --branch "$TF_BRANCH" https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src 2>/dev/null || git clone --depth 1 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src || { echo "ERROR: tensorflow clone failed"; exit 1; }
@@ -42,7 +45,8 @@ for ABI in arm64-v8a armeabi-v7a x86_64; do
     -DANDROID_ABI="$ABI" \
     -DANDROID_PLATFORM=android-26 \
     -DCMAKE_BUILD_TYPE=Release \
-    -DTFLITE_BUILD_WITH_MMAP=OFF 2>&1 | tail -n10 || echo ">> CMake configure para $ABI completado (revisar salida)"
+    -DTFLITE_BUILD_WITH_MMAP=OFF \
+    -DTFLITE_HOST_TOOLS_DIR=/usr/bin 2>&1 | tail -n10 || echo ">> CMake configure para $ABI completado (revisar salida)"
 
   # Compilar la librería
   cmake --build "$BUILD_DIR" -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" 2>&1 | tail -n15 || echo ">> CMake build para $ABI completado (revisar salida)"
