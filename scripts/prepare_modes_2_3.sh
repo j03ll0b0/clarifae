@@ -42,10 +42,18 @@ sed -i 's#*type = kTfLiteInt2;#// *type = kTfLiteInt2;#g' /tmp/tensorflow_src/te
 sed -i 's#case TensorType_UINT4:#// case TensorType_UINT4:#g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
 sed -i 's#*type = kTfLiteUInt4;#// *type = kTfLiteUInt4;#g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
 sed -i '/#include "tensorflow\/lite\/core\/api\/flatbuffer_conversions.h"/a using namespace tflite;' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
-# Reemplazar funciones faltantes (ParseReverseV2, ParseSelect) por retorno seguro
-sed -i -E 's/return ParseReverseV2\(.*\);/return kTfLiteError;/g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
-sed -i -E 's/return ParseSelect\(.*\);/return kTfLiteError;/g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
-sed -i -E 's/return ParseDynamicUpdateSlice\(.*\);/return kTfLiteError;/g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
+# Neutralizar parsers faltantes con Python (soporta multilínea: DOTALL)
+python3 -c '
+path = "/tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc"
+with open(path, "r") as f:
+    content = f.read()
+import re
+content = re.sub(r"return\s+ParseDynamicUpdateSlice\s*\(.*?\);", "return kTfLiteError;", content, flags=re.DOTALL)
+content = re.sub(r"return\s+ParseReverseV2\s*\(.*?\);", "return kTfLiteError;", content, flags=re.DOTALL)
+content = re.sub(r"return\s+ParseSelect\s*\(.*?\);", "return kTfLiteError;", content, flags=re.DOTALL)
+with open(path, "w") as f:
+    f.write(content)
+'
 
 # Usar CMake + NDK (en vez de Bazel que falla con NDK r27 en CI) para compilar TFLite C API
 # Esto evita configure.py / .bazelrc / Bazel version conflicts.
