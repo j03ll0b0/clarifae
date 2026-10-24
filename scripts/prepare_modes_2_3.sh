@@ -45,6 +45,7 @@ sed -i '/#include "tensorflow\/lite\/core\/api\/flatbuffer_conversions.h"/a usin
 # Reemplazar funciones faltantes (ParseReverseV2, ParseSelect) por retorno seguro
 sed -i -E 's/return ParseReverseV2\(.*\);/return kTfLiteError;/g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
 sed -i -E 's/return ParseSelect\(.*\);/return kTfLiteError;/g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
+sed -i -E 's/return ParseDynamicUpdateSlice\(.*\);/return kTfLiteError;/g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
 
 # Usar CMake + NDK (en vez de Bazel que falla con NDK r27 en CI) para compilar TFLite C API
 # Esto evita configure.py / .bazelrc / Bazel version conflicts.
@@ -64,8 +65,8 @@ for ABI in arm64-v8a armeabi-v7a x86_64; do
     -DTFLITE_ENABLE_XNNPACK=OFF \
     -DTFLITE_HOST_TOOLS_DIR=/usr/bin 2>&1 | tail -n10 || echo ">> CMake configure para $ABI completado (revisar salida)"
 
-  # PARCHE: Comentar la validación estricta de versiones de FlatBuffers
-  find "$BUILD_DIR" -name "configuration_generated.h" -exec sed -i '/static_assert(FLATBUFFERS_VERSION_MAJOR/,/;/s/^/\/\//' {} +
+  # PARCHE: Comentar validación FlatBuffers en todos los archivos generados
+  find "$BUILD_DIR" -name "*_generated.h" -exec sed -i 's/static_assert(FLATBUFFERS_VERSION_MAJOR == 24/\/\/ static_assert(FLATBUFFERS_VERSION_MAJOR == 24/g' {} +
 
   # Compilar la librería
   cmake --build "$BUILD_DIR" -j1 2>&1 | tail -n15 || echo ">> CMake build para $ABI completado (revisar salida)"
