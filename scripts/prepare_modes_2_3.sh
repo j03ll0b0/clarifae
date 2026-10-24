@@ -55,6 +55,24 @@ with open(path, "w") as f:
     f.write(content)
 '
 
+# Inyectar macros de compatibilidad para c_api_opaque.cc (v2.21.0)
+python3 -c '
+path = "/tmp/tensorflow_src/tensorflow/lite/core/c/c_api_opaque.cc"
+with open(path, "r") as f:
+    content = f.read()
+macros = """
+#ifndef TfLiteTensorGetDimsSignature
+#define TfLiteTensorGetDimsSignature(tensor) ((tensor)->dims_signature)
+#endif
+#ifndef kTfLiteNonCpu
+#define kTfLiteNonCpu ((TfLiteAllocationType)5)
+#endif
+"""
+content = macros + content
+with open(path, "w") as f:
+    f.write(content)
+'
+
 # Usar CMake + NDK (en vez de Bazel que falla con NDK r27 en CI) para compilar TFLite C API
 # Esto evita configure.py / .bazelrc / Bazel version conflicts.
 for ABI in arm64-v8a armeabi-v7a x86_64; do
