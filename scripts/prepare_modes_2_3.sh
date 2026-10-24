@@ -72,6 +72,25 @@ with open(path, "w") as f:
     f.write(content)
 '
 
+# Inyectar kTfLiteNonCpu dentro del enum TfLiteAllocationType (global)
+python3 -c '
+import os
+for root, dirs, files in os.walk("/tmp/tensorflow_src/tensorflow/lite"):
+    for file in files:
+        if file.endswith((".h", ".cc")):
+            path = os.path.join(root, file)
+            try:
+                with open(path, "r") as f:
+                    content = f.read()
+                if "TfLiteAllocationType" in content and "kTfLiteDynamic" in content and "kTfLiteNonCpu" not in content:
+                    content = content.replace("kTfLiteDynamic", "kTfLiteDynamic,\n  kTfLiteNonCpu")
+                    with open(path, "w") as f:
+                        f.write(content)
+                    print(f"Inyectado kTfLiteNonCpu en {path}")
+            except Exception:
+                pass
+'
+
 # Usar CMake + NDK (en vez de Bazel que falla con NDK r27 en CI) para compilar TFLite C API
 # Esto evita configure.py / .bazelrc / Bazel version conflicts.
 for ABI in arm64-v8a armeabi-v7a x86_64; do
