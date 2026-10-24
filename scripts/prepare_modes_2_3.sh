@@ -10,15 +10,15 @@ echo "=== Prepare binaries for modes 2 & 3 (32-bit + 64-bit) ==="
 
 # ---------- TFLite reference (mode 2) ----------
 mkdir -p "$HERE/tflite_ref/lib/arm64-v8a" "$HERE/tflite_ref/lib/armeabi-v7a" "$HERE/tflite_ref/lib/x86_64" "$HERE/tflite_ref/include"
-echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF source v2.22.0-rc0 ..."
-TF_BRANCH="v2.22.0-rc0"
+echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF source v2.21.0 ..."
+TF_BRANCH="v2.21.0"
 if ! git ls-remote --tags https://github.com/tensorflow/tensorflow.git "refs/tags/$TF_BRANCH" 2>/dev/null | grep -q "$TF_BRANCH"; then
   echo ">> Tag $TF_BRANCH not found; falling back to main ..."
   TF_BRANCH="main"
 fi
 mkdir -p "$HERE/tflite_ref/lib/arm64-v8a" "$HERE/tflite_ref/lib/armeabi-v7a" "$HERE/tflite_ref/lib/x86_64" "$HERE/tflite_ref/include"
-echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF source v2.22.0-rc0 (Bazel + NDK config) ..."
-TF_BRANCH="v2.22.0-rc0"
+echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF source v2.21.0 (Bazel + NDK config) ..."
+TF_BRANCH="v2.21.0"
 if ! git ls-remote --tags https://github.com/tensorflow/tensorflow.git "refs/tags/$TF_BRANCH" 2>/dev/null | grep -q "$TF_BRANCH"; then
   echo ">> Tag $TF_BRANCH not found; falling back to main ..."
   TF_BRANCH="main"
@@ -67,7 +67,7 @@ for ABI in arm64-v8a armeabi-v7a x86_64; do
   fi
 done
 
-# c_api.h: extraer del repo clonado (coincide con v2.22.0-rc0)
+# c_api.h: extraer del repo clonado (coincide con v2.21.0)
 if [ -f /tmp/tensorflow_src/tensorflow/lite/c/c_api.h ]; then
   cp /tmp/tensorflow_src/tensorflow/lite/c/c_api.h "$HERE/tflite_ref/include/c_api.h"
   echo ">> c_api.h staged from tensorflow source ($TF_BRANCH)"
