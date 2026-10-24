@@ -35,6 +35,10 @@ git clone --depth 1 --branch "$TF_BRANCH" https://github.com/tensorflow/tensorfl
 sed -i '/bool MMapHandle::LockMemory()/,/}/d' /tmp/tensorflow_src/tensorflow/lite/delegates/xnnpack/mmap_handle.cc
 sed -i '/bool MMapHandle::UnlockMemory()/,/}/d' /tmp/tensorflow_src/tensorflow/lite/delegates/xnnpack/mmap_handle.cc
 
+# Eliminar casos de tipos 2-bit y 4-bit no soportados por los enums antiguos de v2.21.0
+sed -i '/case TensorType_INT2:/,/break;/d' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
+sed -i '/case TensorType_UINT4:/,/break;/d' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
+
 # Usar CMake + NDK (en vez de Bazel que falla con NDK r27 en CI) para compilar TFLite C API
 # Esto evita configure.py / .bazelrc / Bazel version conflicts.
 for ABI in arm64-v8a armeabi-v7a x86_64; do
