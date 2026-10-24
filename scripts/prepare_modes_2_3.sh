@@ -55,21 +55,21 @@ with open(path, "w") as f:
     f.write(content)
 '
 
-# Inyectar macros de compatibilidad globales (kTfLiteNonCpu, TfLiteTensorGetDimsSignature) en common.h
+# Inyectar macros de compatibilidad directamente al inicio de c_api_opaque.cc
 python3 -c '
-path = "/tmp/tensorflow_src/tensorflow/lite/core/c/common.h"
+path = "/tmp/tensorflow_src/tensorflow/lite/core/c/c_api_opaque.cc"
 with open(path, "r") as f:
     content = f.read()
 if "kTfLiteNonCpu" not in content:
-    macro_fix = """
-#ifndef kTfLiteNonCpu
-#define kTfLiteNonCpu ((TfLiteAllocationType)5)
-#endif
+    macros = """
 #ifndef TfLiteTensorGetDimsSignature
 #define TfLiteTensorGetDimsSignature(tensor) ((tensor)->dims_signature)
 #endif
+#ifndef kTfLiteNonCpu
+#define kTfLiteNonCpu ((TfLiteAllocationType)5)
+#endif
 """
-    content = macro_fix + content
+    content = macros + content
     with open(path, "w") as f:
         f.write(content)
 '
