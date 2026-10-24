@@ -72,21 +72,23 @@ with open(path, "w") as f:
     f.write(content)
 '
 
-# Inyectar kTfLiteNonCpu dentro del enum TfLiteAllocationType (global)
+# Inyectar kTfLiteNonCpu solo en archivos .h (evita romper cadenas en .cc)
 python3 -c '
-import os
+import os, re
 for root, dirs, files in os.walk("/tmp/tensorflow_src/tensorflow/lite"):
     for file in files:
-        if file.endswith((".h", ".cc")):
+        if file.endswith(".h"):
             path = os.path.join(root, file)
             try:
                 with open(path, "r") as f:
                     content = f.read()
                 if "TfLiteAllocationType" in content and "kTfLiteDynamic" in content and "kTfLiteNonCpu" not in content:
-                    content = content.replace("kTfLiteDynamic", "kTfLiteDynamic,\n  kTfLiteNonCpu")
-                    with open(path, "w") as f:
-                        f.write(content)
-                    print(f"Inyectado kTfLiteNonCpu en {path}")
+                    pattern = r"(kTfLiteDynamic\s*(?:=\s*\w+)?\s*,)"
+                    new_content = re.sub(pattern, r"\1\n  kTfLiteNonCpu,", content)
+                    if new_content != content:
+                        with open(path, "w") as f:
+                            f.write(new_content)
+                        print(f"Inyectado kTfLiteNonCpu en {path}")
             except Exception:
                 pass
 '
