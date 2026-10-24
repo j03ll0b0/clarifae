@@ -35,6 +35,9 @@ git clone --depth 1 --branch "$TF_BRANCH" https://github.com/tensorflow/tensorfl
 sed -i '/bool MMapHandle::LockMemory()/,/}/d' /tmp/tensorflow_src/tensorflow/lite/delegates/xnnpack/mmap_handle.cc
 sed -i '/bool MMapHandle::UnlockMemory()/,/}/d' /tmp/tensorflow_src/tensorflow/lite/delegates/xnnpack/mmap_handle.cc
 
+# Relajar validación FlatBuffers (v2.21.0 exige 24, CMake trae 25)
+sed -i 's/FLATBUFFERS_VERSION_MAJOR == 24/FLATBUFFERS_VERSION_MAJOR >= 24/g' /tmp/tensorflow_src/tensorflow/lite/acceleration/configuration/configuration_generated.h
+
 # Usar CMake + NDK (en vez de Bazel que falla con NDK r27 en CI) para compilar TFLite C API
 # Esto evita configure.py / .bazelrc / Bazel version conflicts.
 for ABI in arm64-v8a armeabi-v7a x86_64; do
