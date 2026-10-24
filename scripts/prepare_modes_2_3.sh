@@ -50,6 +50,7 @@ for ABI in arm64-v8a armeabi-v7a x86_64; do
     -DANDROID_PLATFORM=android-26 \
     -DCMAKE_BUILD_TYPE=Release \
     -DTFLITE_BUILD_WITH_MMAP=OFF \
+    -DTFLITE_ENABLE_XNNPACK=OFF \
     -DTFLITE_HOST_TOOLS_DIR=/usr/bin 2>&1 | tail -n10 || echo ">> CMake configure para $ABI completado (revisar salida)"
 
   # Compilar la librería
