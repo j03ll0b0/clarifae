@@ -49,7 +49,7 @@ for ABI in arm64-v8a armeabi-v7a x86_64; do
     -DTFLITE_HOST_TOOLS_DIR=/usr/bin 2>&1 | tail -n10 || echo ">> CMake configure para $ABI completado (revisar salida)"
 
   # Compilar la librería
-  cmake --build "$BUILD_DIR" -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" 2>&1 | tail -n15 || echo ">> CMake build para $ABI completado (revisar salida)"
+  cmake --build "$BUILD_DIR" -j2 2>&1 | tail -n15 || echo ">> CMake build para $ABI completado (revisar salida)"
 
   # Buscar y copiar el .so generado (puede llamarse libtensorflowlite_c.so o libtensorflowlite.so)
   BUILT_SO=$(find -L "$BUILD_DIR" -maxdepth 4 \( -name "libtensorflowlite_c.so" -o -name "libtensorflowlite.so" \) | head -n1)
