@@ -37,10 +37,10 @@ sed -i '/bool MMapHandle::UnlockMemory()/,/}/d' /tmp/tensorflow_src/tensorflow/l
 
 # Parches de compatibilidad para FlatBuffers v25 + NDK r27 (v2.21.0)
 # Parche seguro: comentar líneas individuales (sin borrar bloques ni romper llaves)
-sed -i 's/case TensorType_INT2:// case TensorType_INT2:/g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
-sed -i 's/*type = kTfLiteInt2:// *type = kTfLiteInt2:/g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
-sed -i 's/case TensorType_UINT4:// case TensorType_UINT4:/g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
-sed -i 's/*type = kTfLiteUInt4:// *type = kTfLiteUInt4:/g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
+sed -i 's#case TensorType_INT2:#// case TensorType_INT2:#g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
+sed -i 's#*type = kTfLiteInt2;#// *type = kTfLiteInt2;#g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
+sed -i 's#case TensorType_UINT4:#// case TensorType_UINT4:#g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
+sed -i 's#*type = kTfLiteUInt4;#// *type = kTfLiteUInt4;#g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
 sed -i '/#include "tensorflow\/lite\/core\/api\/flatbuffer_conversions.h"/a using namespace tflite;' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
 
 # Usar CMake + NDK (en vez de Bazel que falla con NDK r27 en CI) para compilar TFLite C API
