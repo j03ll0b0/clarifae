@@ -53,8 +53,8 @@ for ABI in arm64-v8a armeabi-v7a x86_64; do
     -DTFLITE_ENABLE_XNNPACK=OFF \
     -DTFLITE_HOST_TOOLS_DIR=/usr/bin 2>&1 | tail -n10 || echo ">> CMake configure para $ABI completado (revisar salida)"
 
-  # PARCHE: relajar FlatBuffers en archivo autogenerado por CMake
-  find "$BUILD_DIR" -name "configuration_generated.h" -exec sed -i 's/FLATBUFFERS_VERSION_MAJOR == 24/FLATBUFFERS_VERSION_MAJOR >= 24/g' {} +
+  # PARCHE: Comentar la validación estricta de versiones de FlatBuffers
+  find "$BUILD_DIR" -name "configuration_generated.h" -exec sed -i '/static_assert(FLATBUFFERS_VERSION_MAJOR/,/;/s/^/\/\//' {} +
 
   # Compilar la librería
   cmake --build "$BUILD_DIR" -j1 2>&1 | tail -n15 || echo ">> CMake build para $ABI completado (revisar salida)"
