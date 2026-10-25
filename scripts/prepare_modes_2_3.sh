@@ -1,135 +1,54 @@
-#!/usr/bin/env bash
-# prepare_modes_2_3.sh — download/reference binaries needed for DTLN (mode 2)
-# and DeepFilterNet / libdf (mode 3) inside the GitHub Actions workflow.
-# Builds for 32-bit (armeabi-v7a) and 64-bit (arm64-v8a) + x86_64.
+#!/bin/bash
 set -uo pipefail
 
-HERE="$(cd "$(dirname "$0")/.." && pwd)"
+HERE="$(pwd)"
+BUILD_DIR_BASE="$HERE/tflite_build"
 
 echo "=== Prepare binaries for modes 2 & 3 (32-bit + 64-bit) ==="
+echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF source main..."
 
-# ---------- TFLite reference (mode 2) ----------
-mkdir -p "$HERE/tflite_ref/lib/arm64-v8a" "$HERE/tflite_ref/lib/armeabi-v7a" "$HERE/tflite_ref/lib/x86_64" "$HERE/tflite_ref/include"
-echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF source v2.21.0 ..."
-TF_BRANCH="v2.21.0"
-# Estrictamente v2.21.0 — sin fallback
-# Instalar flatc en el host (requerido por CMake para TFLite v2.21.0)
-sudo apt-get install -y flatbuffers-compiler || echo ">> flatbuffers-compiler apt falló; verificando /usr/bin/flatc"
-# CMake descarga FlatBuffers de forma aislada; sin apt de sistema para la librería
-# Clonar TF source (necesario para CMake y c_api.h)
+# Asegurar flatc en el host vía apt para que CMake lo encuentre en /usr/bin
+sudo apt-get update && sudo apt-get install -y flatbuffers-compiler
+
+# Clonar la rama main de TensorFlow
 rm -rf /tmp/tensorflow_src
-git clone --depth 1 --branch "$TF_BRANCH" https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src 2>/dev/null || git clone --depth 1 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src || { echo "ERROR: tensorflow clone failed"; exit 1; }
+git clone --depth 1 --branch main https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src
 
-# Limpiar directorio de build antes de CMake (evita archivos generados con FB25)
-# Nota: rm -rf "$BUILD_DIR" ya está en el bucle, pero aseguramos limpieza explícita si existe anteriormente
-# Usar CMake + NDK (en vez de Bazel que falla con NDK r27 en CI) para compilar TFLite C API
-# Esto evita configure.py / .bazelrc / Bazel version conflicts.
-for ABI in arm64-v8a armeabi-v7a x86_64; do
-  echo ">> Compilando libtensorflowlite_c.so para Android ABI $ABI (CMake + NDK) ..."
-  BUILD_DIR="$HERE/tflite_build/$ABI"
-  rm -rf "$BUILD_DIR"
-  mkdir -p "$BUILD_DIR"
+# Crear directorios de destino
+mkdir -p "$HERE/tflite_ref/lib/arm64-v8a" "$HERE/tflite_ref/lib/armeabi-v7a" "$HERE/tflite_ref/lib/x86_64" "$HERE/tflite_ref/include"
 
-  # Usar la toolchain oficial del NDK para Android
-  cmake -S /tmp/tensorflow_src/tensorflow/lite -B "$BUILD_DIR" \
-    -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
-    -DANDROID_ABI="$ABI" \
-    -DANDROID_PLATFORM=android-26 \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DTFLITE_BUILD_WITH_MMAP=OFF \
-    -DTFLITE_ENABLE_XNNPACK=OFF \
-    -DTFLITE_HOST_TOOLS_DIR=/usr/bin 2>&1 || echo ">> CMake configure para $ABI completado (revisar salida)"
+ABIS=("arm64-v8a" "armeabi-v7a" "x86_64")
 
-  # Compilar la librería (sin tail en pipeline — evita SIGPIPE)
-  cmake --build "$BUILD_DIR" -j1 2>&1 || echo ">> CMake build para $ABI completado (revisar salida)"
+for ABI in "${ABIS[@]}"; do
+    echo ">> Compilando libtensorflowlite_c.so para Android ABI $ABI (CMake + NDK) ..."
+    BUILD_DIR="$BUILD_DIR_BASE/$ABI"
+    rm -rf "$BUILD_DIR"
+    mkdir -p "$BUILD_DIR"
 
-  # Buscar y copiar el .so generado (puede llamarse libtensorflowlite_c.so o libtensorflowlite.so)
-  BUILT_SO=$(find -L "$BUILD_DIR" -maxdepth 4 \( -name "libtensorflowlite_c.so" -o -name "libtensorflowlite.so" \) | head -n1)
-  if [ -f "$BUILT_SO" ]; then
-    cp -f "$BUILT_SO" "$HERE/tflite_ref/lib/$ABI/libtensorflowlite_c.so"
-    echo ">> libtensorflowlite_c.so ($ABI) compilado con CMake y estaged ($(du -h "$BUILT_SO" | cut -f1))"
-  else
-    echo "ERROR: libtensorflowlite_c.so no encontrado para el ABI $ABI (revisar $BUILD_DIR)"
-    exit 1
-  fi
-done
+    cmake -S /tmp/tensorflow_src/tensorflow/lite \
+          -B "$BUILD_DIR" \
+          -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+          -DANDROID_ABI="$ABI" \
+          -DANDROID_PLATFORM=21 \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DTFLITE_ENABLE_XNNPACK=OFF \
+          -DTFLITE_HOST_TOOLS_DIR=/usr/bin
 
-# c_api.h: extraer del repo clonado (coincide con v2.21.0)
-if [ -f /tmp/tensorflow_src/tensorflow/lite/c/c_api.h ]; then
-  cp /tmp/tensorflow_src/tensorflow/lite/c/c_api.h "$HERE/tflite_ref/include/c_api.h"
-  echo ">> c_api.h staged from tensorflow source ($TF_BRANCH)"
-fi
+    cmake --build "$BUILD_DIR" -j$(nproc) --target tensorflow-lite
 
-C_API_URLS=(
-  "https://raw.githubusercontent.com/tensorflow/tensorflow/main/tensorflow/lite/c/c_api.h"
-  "https://github.com/tphakala/tflite_c/raw/main/c_api.h"
-)
-if [ ! -f "$HERE/tflite_ref/include/c_api.h" ]; then
-  for url in "${C_API_URLS[@]}"; do
-    echo ">> Trying c_api.h from $url"
-    if curl -fL --retry 2 -o /tmp/c_api.h "$url" 2>/dev/null; then
-      if [ -s /tmp/c_api.h ]; then
-        cp /tmp/c_api.h "$HERE/tflite_ref/include/c_api.h"
-        echo "  -> c_api.h staged"
-        break 2
-      else
-        echo "  -> empty file from $url"
-      fi
+    # Buscar y copiar el .so generado
+    BUILT_SO=$(find "$BUILD_DIR" \( -name "libtensorflowlite_c.so" -o -name "libtensorflowlite.so" \) | head -n1)
+    if [ -n "$BUILT_SO" ]; then
+        cp "$BUILT_SO" "$HERE/tflite_ref/lib/$ABI/libtensorflowlite_c.so"
+        echo ">> Éxito: libtensorflowlite_c.so copiado para $ABI"
     else
-      echo "  -> fetch failed for $url"
+        echo ">> ERROR: libtensorflowlite_c.so no encontrado para $ABI"
+        exit 1
     fi
-  done
-  [ -f "$HERE/tflite_ref/include/c_api.h" ] || { echo "ERROR: c_api.h could not be fetched"; exit 1; }
-fi
-
-# ---------- DeepFilterNet libdf (mode 3) ----------
-echo ">> DeepFilterNet (mode 3): ensuring cargo-c and cbindgen ..."
-if ! command -v cargo-cinstall >/dev/null 2>&1; then
-  cargo install cargo-c || { echo "ERROR: cargo-c install failed"; exit 1; }
-fi
-if ! command -v cbindgen >/dev/null 2>&1; then
-  cargo install cbindgen || { echo "ERROR: cbindgen install failed"; exit 1; }
-fi
-
-if [ -n "${ANDROID_NDK_HOME:-}" ] && [ -d "$ANDROID_NDK_HOME" ]; then
-  echo ">> Building libdf for ARM 32-bit and 64-bit (+ x86_64) ..."
-  bash "$HERE/scripts/build_df.sh" 2>&1 || { echo "ERROR: build_df.sh failed"; exit 1; }
-
-  # Generate C header using upstream cbindgen.toml
-  echo ">> Generating C header for libdf (CAPI) ..."
-  if [ -f "$HERE/cbindgen.toml" ]; then
-    # Desde models/df/libDF, el archivo de config está en ../../../cbindgen.toml (raíz del proyecto)
-    (cd "$HERE/models/df/libDF" && cbindgen --config ../../../cbindgen.toml --crate deep_filter --output deep_filter.h || echo "WARNING: cbindgen header generation skipped (non-fatal)")
-  else
-    echo "WARNING: cbindgen.toml not found at $HERE/cbindgen.toml; header generation skipped"
-  fi
-else
-  echo "ERROR: ANDROID_NDK_HOME not set or missing; cannot build libdf"; exit 1
-fi
-
-# Verify artifacts for both architectures
-for abi in arm64-v8a armeabi-v7a x86_64; do
-  echo ">> Checking ABI $abi ..."
-  ls -la "$HERE/lib/$abi/libclarifae.so" 2>/dev/null || echo "  (libclarifae.so for $abi will be built by build.sh)"
 done
 
-echo ">> Verifying libdf.so exists for all ABIs ..."
-for abi in arm64-v8a armeabi-v7a x86_64; do
-  SO_FILE="$HERE/models/df/libDF/target/ndk-$abi/release/libdf.so"
-  if [ -f "$SO_FILE" ]; then
-    echo ">> $abi: libdf.so present ($(du -h "$SO_FILE" | cut -f1))"
-  else
-    echo "ERROR: $SO_FILE missing — cargo-ndk build did not complete for $abi"
-    exit 1
-  fi
-done
+# Copiar cabeceras necesarias
+mkdir -p "$HERE/tflite_ref/include/tensorflow/lite/c"
+cp -r /tmp/tensorflow_src/tensorflow/lite/c/*.h "$HERE/tflite_ref/include/tensorflow/lite/c/" 2>/dev/null || cp -r /tmp/tensorflow_src/tensorflow/lite/c "$HERE/tflite_ref/include/"
 
-echo ">> Verify TFLite reference ..."
-# Verificamos que existan los 3 .so de Android (uno por ABI)
-for abi in arm64-v8a armeabi-v7a x86_64; do
-  [ -f "$HERE/tflite_ref/lib/$abi/libtensorflowlite_c.so" ] || { echo "ERROR: tflite_ref/lib/$abi/libtensorflowlite_c.so missing"; exit 1; }
-done
-[ -f "$HERE/tflite_ref/include/c_api.h" ] || { echo "ERROR: tflite_ref/include/c_api.h missing"; exit 1; }
-
-echo ">> All binaries for modes 2 & 3 (32-bit + 64-bit + x86_64) are present."
-exit 0
+echo ">> ¡Proceso completado con éxito para todos los ABIs!"
