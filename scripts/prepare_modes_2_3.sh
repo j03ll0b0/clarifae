@@ -5,14 +5,14 @@ HERE="$(pwd)"
 BUILD_DIR_BASE="$HERE/tflite_build"
 
 echo "=== Prepare binaries for modes 2 & 3 (32-bit + 64-bit) ==="
-echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF source master..."
+echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF source v2.22.0-rc0 ..."
 
 # Asegurar flatc en el host vía apt para que CMake lo encuentre en /usr/bin
 sudo apt-get update && sudo apt-get install -y flatbuffers-compiler
 
-# Clonar la rama main de TensorFlow
+# Clonar la versión v2.22.0-rc0 de TensorFlow
 rm -rf /tmp/tensorflow_src
-git clone --depth 1 --branch master https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src
+git clone --depth 1 --branch v2.22.0-rc0 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src
 
 # Crear directorios de destino
 mkdir -p "$HERE/tflite_ref/lib/arm64-v8a" "$HERE/tflite_ref/lib/armeabi-v7a" "$HERE/tflite_ref/lib/x86_64" "$HERE/tflite_ref/include"
