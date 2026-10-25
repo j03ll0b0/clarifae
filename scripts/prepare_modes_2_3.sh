@@ -90,6 +90,8 @@ for path in [
         print(f"No parcheado {path}: {e}")
 '
 
+# Inyectar kTfLiteNonCpu directamente en common.cc (para el switch en common.cc)
+python3 -c 'path = "/tmp/tensorflow_src/tensorflow/lite/core/c/common.cc"with open(path, "r") as f:    content = f.read()if "kTfLiteNonCpu" not in content:    macro_fix = "#ifndef kTfLiteNonCpu\n#define kTfLiteNonCpu ((TfLiteAllocationType)5)\n#endif\n"    content = macro_fix + content    with open(path, "w") as f:        f.write(content)    print("Inyectado kTfLiteNonCpu en common.cc")'
 # Usar CMake + NDK (en vez de Bazel que falla con NDK r27 en CI) para compilar TFLite C API
 # Esto evita configure.py / .bazelrc / Bazel version conflicts.
 for ABI in arm64-v8a armeabi-v7a x86_64; do
