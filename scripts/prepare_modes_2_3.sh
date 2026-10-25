@@ -35,63 +35,22 @@ git clone --depth 1 --branch "$TF_BRANCH" https://github.com/tensorflow/tensorfl
 sed -i '/bool MMapHandle::LockMemory()/,/}/d' /tmp/tensorflow_src/tensorflow/lite/delegates/xnnpack/mmap_handle.cc
 sed -i '/bool MMapHandle::UnlockMemory()/,/}/d' /tmp/tensorflow_src/tensorflow/lite/delegates/xnnpack/mmap_handle.cc
 
-# Parches de compatibilidad para FlatBuffers v25 + NDK r27 (v2.21.0)
-# Parche seguro: comentar líneas individuales (sin borrar bloques ni romper llaves)
-sed -i 's#case TensorType_INT2:#// case TensorType_INT2:#g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
-sed -i 's#*type = kTfLiteInt2;#// *type = kTfLiteInt2;#g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
-sed -i 's#case TensorType_UINT4:#// case TensorType_UINT4:#g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
-sed -i 's#*type = kTfLiteUInt4;#// *type = kTfLiteUInt4;#g' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
-sed -i '/#include "tensorflow\/lite\/core\/api\/flatbuffer_conversions.h"/a using namespace tflite;' /tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc
-# Neutralizar parsers faltantes con Python (soporta multilínea: DOTALL)
+# Parches definitivos: cambiar FetchContent de FlatBuffers a v24.3.25
 python3 -c '
-path = "/tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc"
-with open(path, "r") as f:
-    content = f.read()
-import re
-content = re.sub(r"return\s+ParseDynamicUpdateSlice\s*\(.*?\);", "return kTfLiteError;", content, flags=re.DOTALL)
-content = re.sub(r"return\s+ParseReverseV2\s*\(.*?\);", "return kTfLiteError;", content, flags=re.DOTALL)
-content = re.sub(r"return\s+ParseSelect\s*\(.*?\);", "return kTfLiteError;", content, flags=re.DOTALL)
-with open(path, "w") as f:
-    f.write(content)
+path = "/tmp/tensorflow_src/tensorflow/lite/CMakeLists.txt"
+if __import__("os").path.exists(path):
+    with open(path, "r") as f:
+        text = f.read()
+    # Reemplazar cualquier GIT_TAG existente por la versión 24
+    import re
+    text = re.sub(r"GIT_TAG\s+v[0-9.]+", "GIT_TAG v24.3.25", text)
+    with open(path, "w") as f:
+        f.write(text)
+    print("FetchContent actualizado a FB v24.3.25")
 '
 
-# Reemplazar líneas problemáticas en c_api_opaque.cc por valores seguros
-python3 -c '
-path = "/tmp/tensorflow_src/tensorflow/lite/core/c/c_api_opaque.cc"
-with open(path, "r") as f:
-    content = f.read()
-content = content.replace(
-    "const TfLiteIntArray* dims_signature = TfLiteTensorGetDimsSignature(tensor);",
-    "const TfLiteIntArray* dims_signature = nullptr;"
-)
-content = content.replace(
-    "Convert(opaque_tensor)->allocation_type = kTfLiteNonCpu;",
-    "Convert(opaque_tensor)->allocation_type = (TfLiteAllocationType)0;"
-)
-with open(path, "w") as f:
-    f.write(content)
-'
-
-# Inyectar kTfLiteNonCpu en archivos .h de enums (common.h + tflite_types.h)
-python3 -c '
-for path in [
-    "/tmp/tensorflow_src/tensorflow/lite/core/c/common.h",
-    "/tmp/tensorflow_src/tensorflow/compiler/mlir/lite/core/c/tflite_types.h",
-]:
-    try:
-        with open(path, "r") as f:
-            content = f.read()
-        if "kTfLiteDynamic" in content and "kTfLiteNonCpu" not in content:
-            content = content.replace("kTfLiteDynamic", "kTfLiteDynamic,\n  kTfLiteNonCpu")
-            with open(path, "w") as f:
-                f.write(content)
-            print(f"Inyectado kTfLiteNonCpu en {path}")
-    except Exception as e:
-        print(f"No parcheado {path}: {e}")
-'
-
-# Inyectar kTfLiteNonCpu directamente en common.cc (para el switch en common.cc)
-python3 -c 'path = "/tmp/tensorflow_src/tensorflow/lite/core/c/common.cc"with open(path, "r") as f:    content = f.read()if "kTfLiteNonCpu" not in content:    macro_fix = "#ifndef kTfLiteNonCpu\n#define kTfLiteNonCpu ((TfLiteAllocationType)5)\n#endif\n"    content = macro_fix + content    with open(path, "w") as f:        f.write(content)    print("Inyectado kTfLiteNonCpu en common.cc")'
+# Limpiar directorio de build antes de CMake (evita archivos generados con FB25)
+# Nota: rm -rf "$BUILD_DIR" ya está en el bucle, pero aseguramos limpieza explícita si existe anteriormente
 # Usar CMake + NDK (en vez de Bazel que falla con NDK r27 en CI) para compilar TFLite C API
 # Esto evita configure.py / .bazelrc / Bazel version conflicts.
 for ABI in arm64-v8a armeabi-v7a x86_64; do
