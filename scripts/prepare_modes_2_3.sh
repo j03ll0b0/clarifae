@@ -25,7 +25,6 @@ if ! git ls-remote --tags https://github.com/tensorflow/tensorflow.git "refs/tag
 fi
 
 # Instalar flatc en el host para cross-compile con CMake
-sudo apt-get update && sudo apt-get install -y flatbuffers-compiler || { echo "WARNING: flatbuffers-compiler install failed"; }
 
 # Clonar TF source (necesario para CMake y c_api.h)
 rm -rf /tmp/tensorflow_src
