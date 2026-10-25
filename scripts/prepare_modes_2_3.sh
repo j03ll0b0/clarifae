@@ -13,35 +13,39 @@ mkdir -p "$HERE/tflite_ref/lib/arm64-v8a" "$HERE/tflite_ref/lib/armeabi-v7a" "$H
 echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF source v2.21.0 ..."
 TF_BRANCH="v2.21.0"
 # Estrictamente v2.21.0 — sin fallback
-# CMake descarga FlatBuffers de forma aislada; sin apt de sistema
+# Instalar flatc en el host (requerido por CMake para TFLite v2.21.0)
+sudo apt-get install -y flatbuffers-compiler || echo ">> flatbuffers-compiler apt falló; verificando /usr/bin/flatc"
+# CMake descarga FlatBuffers de forma aislada; sin apt de sistema para la librería
 # Clonar TF source (necesario para CMake y c_api.h)
 rm -rf /tmp/tensorflow_src
 git clone --depth 1 --branch "$TF_BRANCH" https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src 2>/dev/null || git clone --depth 1 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src || { echo "ERROR: tensorflow clone failed"; exit 1; }
 
 # Parches definitivos: interceptar FetchContent de FlatBuffers en módulo CMake
 # y fijar GIT_TAG a la versión original v2.0.8 para v2.21.0
-python3 -c '
+python3 << 'PYEOF'
 path = "/tmp/tensorflow_src/tensorflow/lite/tools/cmake/modules/flatbuffers.cmake"
 import os, re
 if os.path.exists(path):
     with open(path, "r") as f:
         text = f.read()
-    # Interceptar declaración de FetchContent y fijar GIT_TAG explícitamente a v2.0.8
-    text = re.sub(r"(FetchContent_Declare\(\s*flatbuffers.*?GIT_TAG\s+)[a-zA-Z0-9_.]+", r"\1v2.0.8", text, flags=re.DOTALL)
-    # Si no hay GIT_TAG, inyectarlo en el bloque FetchContent_Declare
+    text = re.sub(
+        r"(FetchContent_Declare\(\s*flatbuffers.*?GIT_TAG\s+)[a-zA-Z0-9_.]+",
+        r"\1v2.0.8",
+        text,
+        flags=re.DOTALL,
+    )
     if "GIT_TAG v2.0.8" not in text:
-        text = re.sub(
-            r"(FetchContent_Declare\(flatbuffers[^
-]*?")",
-            r"\1\n  GIT_TAG v2.0.8",
-            text,
+        text = text.replace("FetchContent_Declare(", "FetchContent_Declare(\n  GIT_TAG v2.0.8\n")
+        text = text.replace(
+            "GIT_REPOSITORY https://github.com/google/flatbuffers.git",
+            "GIT_TAG v2.0.8\n  GIT_REPOSITORY https://github.com/google/flatbuffers.git",
         )
     with open(path, "w") as f:
         f.write(text)
     print("FetchContent actualizado a FB v2.0.8 en flatbuffers.cmake")
 else:
     print("AVISO: flatbuffers.cmake no encontrado en " + path)
-'
+PYEOF
 
 # Limpiar directorio de build antes de CMake (evita archivos generados con FB25)
 # Nota: rm -rf "$BUILD_DIR" ya está en el bucle, pero aseguramos limpieza explícita si existe anteriormente
