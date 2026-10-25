@@ -43,7 +43,7 @@ if __import__("os").path.exists(path):
         text = f.read()
     # Reemplazar cualquier GIT_TAG existente por la versión 24
     import re
-    text = re.sub(r"GIT_TAG\s+v[0-9.]+", "GIT_TAG v24.3.25", text)
+    text = re.sub(r"GIT_TAG\s+v[0-9.]+", "GIT_TAG v2.0.8", text)
     with open(path, "w") as f:
         f.write(text)
     print("FetchContent actualizado a FB v24.3.25")
