@@ -12,40 +12,35 @@ echo "=== Prepare binaries for modes 2 & 3 (32-bit + 64-bit) ==="
 mkdir -p "$HERE/tflite_ref/lib/arm64-v8a" "$HERE/tflite_ref/lib/armeabi-v7a" "$HERE/tflite_ref/lib/x86_64" "$HERE/tflite_ref/include"
 echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF source v2.21.0 ..."
 TF_BRANCH="v2.21.0"
-if ! git ls-remote --tags https://github.com/tensorflow/tensorflow.git "refs/tags/$TF_BRANCH" 2>/dev/null | grep -q "$TF_BRANCH"; then
-  echo ">> Tag $TF_BRANCH not found; falling back to main ..."
-  TF_BRANCH="main"
-fi
-mkdir -p "$HERE/tflite_ref/lib/arm64-v8a" "$HERE/tflite_ref/lib/armeabi-v7a" "$HERE/tflite_ref/lib/x86_64" "$HERE/tflite_ref/include"
-echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF source v2.21.0 (Bazel + NDK config) ..."
-TF_BRANCH="v2.21.0"
-if ! git ls-remote --tags https://github.com/tensorflow/tensorflow.git "refs/tags/$TF_BRANCH" 2>/dev/null | grep -q "$TF_BRANCH"; then
-  echo ">> Tag $TF_BRANCH not found; falling back to main ..."
-  TF_BRANCH="main"
-fi
-
-# Instalar flatc en el host para cross-compile con CMake
-
+# Estrictamente v2.21.0 — sin fallback
+# CMake descarga FlatBuffers de forma aislada; sin apt de sistema
 # Clonar TF source (necesario para CMake y c_api.h)
 rm -rf /tmp/tensorflow_src
 git clone --depth 1 --branch "$TF_BRANCH" https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src 2>/dev/null || git clone --depth 1 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src || { echo "ERROR: tensorflow clone failed"; exit 1; }
 
-# Parchear mmap_handle.cc para evitar errores de LockMemory/UnlockMemory con el NDK r27
-sed -i '/bool MMapHandle::LockMemory()/,/}/d' /tmp/tensorflow_src/tensorflow/lite/delegates/xnnpack/mmap_handle.cc
-sed -i '/bool MMapHandle::UnlockMemory()/,/}/d' /tmp/tensorflow_src/tensorflow/lite/delegates/xnnpack/mmap_handle.cc
-
-# Parches definitivos: cambiar FetchContent de FlatBuffers a v24.3.25
+# Parches definitivos: interceptar FetchContent de FlatBuffers en módulo CMake
+# y fijar GIT_TAG a la versión original v2.0.8 para v2.21.0
 python3 -c '
-path = "/tmp/tensorflow_src/tensorflow/lite/CMakeLists.txt"
-if __import__("os").path.exists(path):
+path = "/tmp/tensorflow_src/tensorflow/lite/tools/cmake/modules/flatbuffers.cmake"
+import os, re
+if os.path.exists(path):
     with open(path, "r") as f:
         text = f.read()
-    # Reemplazar cualquier GIT_TAG existente por la versión 24
-    import re
-    text = re.sub(r"GIT_TAG\s+v[0-9.]+", "GIT_TAG v2.0.8", text)
+    # Interceptar declaración de FetchContent y fijar GIT_TAG explícitamente a v2.0.8
+    text = re.sub(r"(FetchContent_Declare\(\s*flatbuffers.*?GIT_TAG\s+)[a-zA-Z0-9_.]+", r"\1v2.0.8", text, flags=re.DOTALL)
+    # Si no hay GIT_TAG, inyectarlo en el bloque FetchContent_Declare
+    if "GIT_TAG v2.0.8" not in text:
+        text = re.sub(
+            r"(FetchContent_Declare\(flatbuffers[^
+]*?")",
+            r"\1\n  GIT_TAG v2.0.8",
+            text,
+        )
     with open(path, "w") as f:
         f.write(text)
-    print("FetchContent actualizado a FB v24.3.25")
+    print("FetchContent actualizado a FB v2.0.8 en flatbuffers.cmake")
+else:
+    print("AVISO: flatbuffers.cmake no encontrado en " + path)
 '
 
 # Limpiar directorio de build antes de CMake (evita archivos generados con FB25)
@@ -66,13 +61,10 @@ for ABI in arm64-v8a armeabi-v7a x86_64; do
     -DCMAKE_BUILD_TYPE=Release \
     -DTFLITE_BUILD_WITH_MMAP=OFF \
     -DTFLITE_ENABLE_XNNPACK=OFF \
-    -DTFLITE_HOST_TOOLS_DIR=/usr/bin 2>&1 | tail -n10 || echo ">> CMake configure para $ABI completado (revisar salida)"
+    -DTFLITE_HOST_TOOLS_DIR=/usr/bin 2>&1 || echo ">> CMake configure para $ABI completado (revisar salida)"
 
-  # ELIMINAR TODAS LAS VALIDACIONES ESTRICTAS DE FLATBUFFERS EN ARCHIVOS GENERADOS
-  find "$BUILD_DIR" -name "*_generated.h" -exec sed -i '/static_assert(FLATBUFFERS_VERSION/,/;/d' {} +
-
-  # Compilar la librería
-  cmake --build "$BUILD_DIR" -j1 2>&1 | tail -n15 || echo ">> CMake build para $ABI completado (revisar salida)"
+  # Compilar la librería (sin tail en pipeline — evita SIGPIPE)
+  cmake --build "$BUILD_DIR" -j1 2>&1 || echo ">> CMake build para $ABI completado (revisar salida)"
 
   # Buscar y copiar el .so generado (puede llamarse libtensorflowlite_c.so o libtensorflowlite.so)
   BUILT_SO=$(find -L "$BUILD_DIR" -maxdepth 4 \( -name "libtensorflowlite_c.so" -o -name "libtensorflowlite.so" \) | head -n1)
