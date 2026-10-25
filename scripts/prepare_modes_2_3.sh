@@ -21,7 +21,7 @@ rm -rf /tmp/tensorflow_src
 git clone --depth 1 --branch "$TF_BRANCH" https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src 2>/dev/null || git clone --depth 1 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src || { echo "ERROR: tensorflow clone failed"; exit 1; }
 
 # Parches definitivos: interceptar FetchContent de FlatBuffers en módulo CMake
-# y fijar GIT_TAG a la versión original v2.0.8 para v2.21.0
+# y fijar GIT_TAG a la versión nativa v24.3.25 para v2.21.0
 python3 << 'PYEOF'
 path = "/tmp/tensorflow_src/tensorflow/lite/tools/cmake/modules/flatbuffers.cmake"
 import os, re
@@ -30,19 +30,22 @@ if os.path.exists(path):
         text = f.read()
     text = re.sub(
         r"(FetchContent_Declare\(\s*flatbuffers.*?GIT_TAG\s+)[a-zA-Z0-9_.]+",
-        r"\1v2.0.8",
+        r"\1v24.3.25",
         text,
         flags=re.DOTALL,
     )
-    if "GIT_TAG v2.0.8" not in text:
-        text = text.replace("FetchContent_Declare(", "FetchContent_Declare(\n  GIT_TAG v2.0.8\n")
+    if "GIT_TAG v24.3.25" not in text:
+        text = text.replace(
+            "FetchContent_Declare(",
+            "FetchContent_Declare(\n  GIT_TAG v24.3.25\n",
+        )
         text = text.replace(
             "GIT_REPOSITORY https://github.com/google/flatbuffers.git",
-            "GIT_TAG v2.0.8\n  GIT_REPOSITORY https://github.com/google/flatbuffers.git",
+            "GIT_TAG v24.3.25\n  GIT_REPOSITORY https://github.com/google/flatbuffers.git",
         )
     with open(path, "w") as f:
         f.write(text)
-    print("FetchContent actualizado a FB v2.0.8 en flatbuffers.cmake")
+    print("FetchContent actualizado a FB v24.3.25 en flatbuffers.cmake")
 else:
     print("AVISO: flatbuffers.cmake no encontrado en " + path)
 PYEOF
