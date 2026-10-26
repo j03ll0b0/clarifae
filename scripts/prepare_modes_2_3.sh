@@ -34,17 +34,17 @@ for ABI in "${ABIS[@]}"; do
     rm -rf "$BUILD_DIR"
     mkdir -p "$BUILD_DIR"
 
-    cmake -S /tmp/tensorflow_src/tensorflow/lite \
+    cmake -S /tmp/tensorflow_src/tensorflow/lite/c \
           -B "$BUILD_DIR" \
           -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
           -DANDROID_ABI="$ABI" \
           -DANDROID_PLATFORM=21 \
           -DCMAKE_BUILD_TYPE=Release \
-          -DTFLITE_ENABLE_XNNPACK=OFF \
-          -DTFLITE_BUILD_SHARED_LIB=ON \
+          -DTFLITE_ENABLE_XNNPACK=ON \
+          -DTFLITE_C_BUILD_SHARED_LIBS=ON \
           -DTFLITE_HOST_TOOLS_DIR="$HOST_TOOLS_DIR"
 
-    cmake --build "$BUILD_DIR" -j$(nproc) --target tensorflow-lite
+    cmake --build "$BUILD_DIR" -j$(nproc) --target tensorflowlite_c
 
     # Buscar y copiar el .so generado
     BUILT_SO=$(find "$BUILD_DIR" \( -name "libtensorflowlite_c.so" -o -name "libtensorflowlite.so" \) | head -n1)
