@@ -5,14 +5,14 @@ HERE="$(pwd)"
 BUILD_DIR_BASE="$HERE/tflite_build"
 
 echo "=== Prepare binaries for modes 2 & 3 (32-bit + 64-bit) ==="
-echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF source v2.22.0-rc0 ..."
+echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF source v2.21.0 ..."
 
-# 1. Clonar la versión v2.22.0-rc0 de TensorFlow
+# 1. Clonar la versión v2.21.0 de TensorFlow (clon completo, sin --depth 1)
 rm -rf /tmp/tensorflow_src
-git clone --branch v2.22.0-rc0 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src
+git clone --branch v2.21.0 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src
 
-# 2. Compilar flatc nativo usando las herramientas internas del repositorio TF
-# (evita descargar flatbuffers externamente; usa el subproyecto nativo de TFLite)
+# 2. Compilar flatc nativo con el subproyecto interno de TFLite
+#    (tensorflow/lite/tools/cmake/native_tools/flatbuffers)
 echo ">> Compilando flatc nativo desde el repositorio TF ..."
 rm -rf /tmp/tensorflow_src/flatc-native-build
 mkdir -p /tmp/tensorflow_src/flatc-native-build
