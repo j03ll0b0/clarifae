@@ -46,6 +46,9 @@ with open(path, "w") as f:
     f.write(content)
 PYEOF
 
+# 4b. Reemplazar llamadas ParseSelect por ParseSelectV2 (como sugiere el compilador)
+sed -i 's/ParseSelect(/ParseSelectV2(/g' "/tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc"
+
 # 3. Compilar flatc nativo con el subproyecto interno de TFLite
 #    (tensorflow/lite/tools/cmake/native_tools/flatbuffers)
 echo ">> Compilando flatc nativo desde el repositorio TF ..."
