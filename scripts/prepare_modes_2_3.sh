@@ -11,7 +11,20 @@ echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF sourc
 rm -rf /tmp/tensorflow_src
 git clone --branch v2.19.1 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src
 
-# 2. Compilar flatc nativo con el subproyecto interno de TFLite
+# 2. Limpieza total del directorio de build
+rm -rf "$HERE/tflite_build"
+mkdir -p "$HERE/tflite_build"
+
+# 3. PARCHE DINÁMICO: Corregir hash de KleidiAI (antes de CMake para que lea archivos corregidos)
+#    Intercepta archivos .cmake o .bzl que XNNPACK descarga dinámicamente.
+find /tmp -type f \( -name "*.cmake" \) 2>/dev/null | while read f; do
+    if grep -q "f3ea4fce53f3b31076958dbff229f0048dae15bf454929673c78292a56279d52" "$f" 2>/dev/null; then
+        echo ">> Corrigiendo hash KleidiAI en $f ..."
+        sed -i 's/f3ea4fce53f3b31076958dbff229f0048dae15bf454929673c78292a56279d52/3564707756473a165ddb3cf670187a4eeb2189c71c5ef01e865567cab071daac/g' "$f"
+    fi
+done
+
+# 4. Compilar flatc nativo con el subproyecto interno de TFLite
 #    (tensorflow/lite/tools/cmake/native_tools/flatbuffers)
 #    Se usa el flatc que trae el branch sin fijar versión externa.
 echo ">> Compilando flatc nativo desde el repositorio TF ..."
@@ -23,7 +36,7 @@ cmake -S /tmp/tensorflow_src/tensorflow/lite/tools/cmake/native_tools/flatbuffer
 cmake --build /tmp/tensorflow_src/flatc-native-build -- -j$(nproc)
 HOST_TOOLS_DIR="/tmp/tensorflow_src/flatc-native-build"
 
-# 3. Crear directorios de destino
+# 5. Crear directorios de destino
 mkdir -p "$HERE/tflite_ref/lib/arm64-v8a" "$HERE/tflite_ref/lib/armeabi-v7a" "$HERE/tflite_ref/lib/x86_64" "$HERE/tflite_ref/include"
 
 ABIS=("arm64-v8a" "armeabi-v7a" "x86_64")
@@ -46,9 +59,8 @@ for ABI in "${ABIS[@]}"; do
           -DTFLITE_ENABLE_INSTALL=OFF \
           -Wno-dev
 
-    # 4. PARCHE DINÁMICO: Corregir hash de KleidiAI en cualquier archivo CMake descargado
-    #    (intercepta la descarga dinámica de XNNPACK/KleidiAI para que XNNPACK compile)
-    find "$BUILD_DIR" /tmp -type f \( -name "*.cmake" -o -name "*.bzl" \) 2>/dev/null | while read f; do
+    # 4. PARCHE DINÁMICO: Interceptar archivos .cmake descargados por XNNPACK (después de cmake -S, antes de cmake --build)
+    find "$BUILD_DIR" /tmp -type f -name "*.cmake" 2>/dev/null | while read f; do
         if grep -q "f3ea4fce53f3b31076958dbff229f0048dae15bf454929673c78292a56279d52" "$f" 2>/dev/null; then
             echo ">> Corrigiendo hash KleidiAI en $f ..."
             sed -i 's/f3ea4fce53f3b31076958dbff229f0048dae15bf454929673c78292a56279d52/3564707756473a165ddb3cf670187a4eeb2189c71c5ef01e865567cab071daac/g' "$f"
