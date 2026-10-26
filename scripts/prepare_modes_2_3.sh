@@ -55,7 +55,7 @@ fi
 # 5. Crear directorios de destino
 mkdir -p "$HERE/tflite_ref/lib/arm64-v8a" "$HERE/tflite_ref/lib/armeabi-v7a" "$HERE/tflite_ref/lib/x86_64" "$HERE/tflite_ref/include"
 
-ABIS=("arm64-v8a" "armeabi-v7a" "x86_64")
+ABIS=("arm64-v8a" "armeabi-v7a")
 
 for ABI in "${ABIS[@]}"; do
     echo ">> Compilando libtensorflowlite_c.so para Android ABI $ABI (CMake + NDK) ..."
