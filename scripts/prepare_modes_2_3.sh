@@ -42,7 +42,9 @@ for ABI in "${ABIS[@]}"; do
           -DCMAKE_BUILD_TYPE=Release \
           -DTFLITE_ENABLE_XNNPACK=ON \
           -DTFLITE_C_BUILD_SHARED_LIBS=ON \
-          -DTFLITE_HOST_TOOLS_DIR="$HOST_TOOLS_DIR"
+          -DTFLITE_HOST_TOOLS_DIR="$HOST_TOOLS_DIR" \
+          -DTFLITE_ENABLE_INSTALL=OFF \
+          -Wno-dev
 
     cmake --build "$BUILD_DIR" -j$(nproc) --target tensorflowlite_c
 
