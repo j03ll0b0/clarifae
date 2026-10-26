@@ -46,6 +46,15 @@ for ABI in "${ABIS[@]}"; do
           -DTFLITE_ENABLE_INSTALL=OFF \
           -Wno-dev
 
+    # 4. PARCHE DINÁMICO: Corregir hash de KleidiAI en cualquier archivo CMake descargado
+    #    (intercepta la descarga dinámica de XNNPACK/KleidiAI para que XNNPACK compile)
+    find "$BUILD_DIR" /tmp -type f \( -name "*.cmake" -o -name "*.bzl" \) 2>/dev/null | while read f; do
+        if grep -q "f3ea4fce53f3b31076958dbff229f0048dae15bf454929673c78292a56279d52" "$f" 2>/dev/null; then
+            echo ">> Corrigiendo hash KleidiAI en $f ..."
+            sed -i 's/f3ea4fce53f3b31076958dbff229f0048dae15bf454929673c78292a56279d52/3564707756473a165ddb3cf670187a4eeb2189c71c5ef01e865567cab071daac/g' "$f"
+        fi
+    done
+
     cmake --build "$BUILD_DIR" -j$(nproc) --target tensorflowlite_c
 
     # Buscar y copiar el .so generado
