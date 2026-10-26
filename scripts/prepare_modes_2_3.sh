@@ -11,14 +11,7 @@ echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF sourc
 rm -rf /tmp/tensorflow_src
 git clone --branch v2.19.1 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src
 
-# 2. PARCHE: Corregir hash de KleidiAI en workspace2.bzl para que XNNPACK compile
-WORKSPACE_FILE="/tmp/tensorflow_src/tensorflow/workspace2.bzl"
-if [ -f "$WORKSPACE_FILE" ]; then
-    echo ">> Corrigiendo hash KleidiAI en workspace2.bzl..."
-    sed -i 's/f3ea4fce53f3b31076958dbff229f0048dae15bf454929673c78292a56279d52/3564707756473a165ddb3cf670187a4eeb2189c71c5ef01e865567cab071daac/g' "$WORKSPACE_FILE"
-fi
-
-# 3. Compilar flatc nativo con el subproyecto interno de TFLite
+# 2. Compilar flatc nativo con el subproyecto interno de TFLite
 #    (tensorflow/lite/tools/cmake/native_tools/flatbuffers)
 #    Se usa el flatc que trae el branch sin fijar versión externa.
 echo ">> Compilando flatc nativo desde el repositorio TF ..."
