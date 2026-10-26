@@ -18,6 +18,34 @@ if [ -f "$FB_CMAKE_FILE" ]; then
     sed -i 's/GIT_TAG v25\.9\.23/GIT_TAG v24.3.25/g' "$FB_CMAKE_FILE"
 fi
 
+# 4. PARCHE: Eliminar bloques de operadores/schemas no soportados en flatbuffer_conversions.cc
+#    (INT2, UINT4, DynamicUpdateSlice, ReverseV2, SelectV2) para evitar errores con FlatBuffers v24
+python3 << 'PYEOF'
+import re
+path = "/tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc"
+with open(path) as f:
+    content = f.read()
+lines = content.splitlines(keepends=True)
+new_lines = []
+skip = False
+for line in lines:
+    if re.search(r"case BuiltinOperator_DYNAMIC_UPDATE_SLICE", line) or \
+       re.search(r"case BuiltinOperator_REVERSE_V2", line) or \
+       re.search(r"case BuiltinOperator_SELECT_V2", line):
+        skip = True
+        continue
+    if skip:
+        if line.strip() == "}":
+            skip = False
+        continue
+    new_lines.append(line)
+content = "".join(new_lines)
+content = content.replace("    case TensorType_INT2:\n      *type = kTfLiteInt2;\n      return kTfLiteOk;\n", "")
+content = content.replace("    case TensorType_UINT4:\n      *type = kTfLiteUInt4;\n      return kTfLiteOk;\n", "")
+with open(path, "w") as f:
+    f.write(content)
+PYEOF
+
 # 3. Compilar flatc nativo con el subproyecto interno de TFLite
 #    (tensorflow/lite/tools/cmake/native_tools/flatbuffers)
 echo ">> Compilando flatc nativo desde el repositorio TF ..."
