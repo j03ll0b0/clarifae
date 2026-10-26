@@ -7,21 +7,20 @@ BUILD_DIR_BASE="$HERE/tflite_build"
 echo "=== Prepare binaries for modes 2 & 3 (32-bit + 64-bit) ==="
 echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF source v2.22.0-rc0 ..."
 
-# 1. Compilar flatc nativo desde la fuente oficial de flatbuffers (evita desfase con apt v23)
-echo ">> Compilando flatc nativo desde google/flatbuffers ..."
-rm -rf /tmp/flatbuffers_src
-rm -rf /tmp/flatc-native-build
-git clone --depth 1 --branch master https://github.com/google/flatbuffers.git /tmp/flatbuffers_src || \
-git clone --depth 1 https://github.com/google/flatbuffers.git /tmp/flatbuffers_src
-
-mkdir -p /tmp/flatc-native-build
-cmake -S /tmp/flatbuffers_src -B /tmp/flatc-native-build -DCMAKE_BUILD_TYPE=Release
-cmake --build /tmp/flatc-native-build -- -j$(nproc)
-HOST_TOOLS_DIR="/tmp/flatc-native-build"
+# 1. Compilar flatc nativo usando las herramientas internas del repositorio TF
+# (evita descargar flatbuffers externamente; usa el subproyecto nativo de TFLite)
+echo ">> Compilando flatc nativo desde el repositorio TF ..."
+rm -rf /tmp/tensorflow_src/flatc-native-build
+mkdir -p /tmp/tensorflow_src/flatc-native-build
+cmake -S /tmp/tensorflow_src/tensorflow/lite/tools/cmake/native_tools/flatbuffers \
+      -B /tmp/tensorflow_src/flatc-native-build \
+      -DCMAKE_BUILD_TYPE=Release
+cmake --build /tmp/tensorflow_src/flatc-native-build -- -j$(nproc)
+HOST_TOOLS_DIR="/tmp/tensorflow_src/flatc-native-build"
 
 # 2. Clonar la versión v2.22.0-rc0 de TensorFlow
 rm -rf /tmp/tensorflow_src
-git clone --depth 1 --branch v2.22.0-rc0 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src
+git clone --branch v2.22.0-rc0 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src
 
 # 3. Crear directorios de destino
 mkdir -p "$HERE/tflite_ref/lib/arm64-v8a" "$HERE/tflite_ref/lib/armeabi-v7a" "$HERE/tflite_ref/lib/x86_64" "$HERE/tflite_ref/include"
