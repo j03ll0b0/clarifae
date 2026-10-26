@@ -41,6 +41,7 @@ for ABI in "${ABIS[@]}"; do
           -DANDROID_PLATFORM=21 \
           -DCMAKE_BUILD_TYPE=Release \
           -DTFLITE_ENABLE_XNNPACK=OFF \
+          -DTFLITE_BUILD_SHARED_LIB=ON \
           -DTFLITE_HOST_TOOLS_DIR="$HOST_TOOLS_DIR"
 
     cmake --build "$BUILD_DIR" -j$(nproc) --target tensorflow-lite
