@@ -5,52 +5,15 @@ HERE="$(pwd)"
 BUILD_DIR_BASE="$HERE/tflite_build"
 
 echo "=== Prepare binaries for modes 2 & 3 (32-bit + 64-bit) ==="
-echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF source v2.21.0 ..."
+echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF source v2.19.1 ..."
 
-# 1. Clonar la versión v2.21.0 de TensorFlow (clon completo, sin --depth 1)
+# 1. Clonar la versión v2.19.1 de TensorFlow (clon completo, sin --depth 1)
 rm -rf /tmp/tensorflow_src
-git clone --branch v2.21.0 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src
+git clone --branch v2.19.1 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src
 
-# 2. PARCHE: Forzar FlatBuffers v24 en el CMake de TFLite
-FB_CMAKE_FILE="/tmp/tensorflow_src/tensorflow/lite/tools/cmake/modules/flatbuffers.cmake"
-if [ -f "$FB_CMAKE_FILE" ]; then
-    echo ">> Parchando flatbuffers.cmake para usar FlatBuffers v24..."
-    sed -i 's/GIT_TAG v25\.9\.23/GIT_TAG v24.3.25/g' "$FB_CMAKE_FILE"
-fi
-
-# 4. PARCHE: Eliminar bloques de operadores/schemas no soportados en flatbuffer_conversions.cc
-#    (INT2, UINT4, DynamicUpdateSlice, ReverseV2, SelectV2) para evitar errores con FlatBuffers v24
-python3 << 'PYEOF'
-import re
-path = "/tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc"
-with open(path) as f:
-    content = f.read()
-lines = content.splitlines(keepends=True)
-new_lines = []
-skip = False
-for line in lines:
-    if re.search(r"case BuiltinOperator_DYNAMIC_UPDATE_SLICE", line) or \
-       re.search(r"case BuiltinOperator_REVERSE_V2", line) or \
-       re.search(r"case BuiltinOperator_SELECT_V2", line):
-        skip = True
-        continue
-    if skip:
-        if line.strip() == "}":
-            skip = False
-        continue
-    new_lines.append(line)
-content = "".join(new_lines)
-content = content.replace("    case TensorType_INT2:\n      *type = kTfLiteInt2;\n      return kTfLiteOk;\n", "")
-content = content.replace("    case TensorType_UINT4:\n      *type = kTfLiteUInt4;\n      return kTfLiteOk;\n", "")
-with open(path, "w") as f:
-    f.write(content)
-PYEOF
-
-# 4b. Eliminar bloque SELECT (ParseSelect) para evitar redefinición con v24.3.25
-sed -i '/case BuiltinOperator_SELECT:/,/    }/d' "/tmp/tensorflow_src/tensorflow/lite/core/api/flatbuffer_conversions.cc"
-
-# 3. Compilar flatc nativo con el subproyecto interno de TFLite
+# 2. Compilar flatc nativo con el subproyecto interno de TFLite
 #    (tensorflow/lite/tools/cmake/native_tools/flatbuffers)
+#    Se usa el flatc que trae el branch sin fijar versión externa.
 echo ">> Compilando flatc nativo desde el repositorio TF ..."
 rm -rf /tmp/tensorflow_src/flatc-native-build
 mkdir -p /tmp/tensorflow_src/flatc-native-build
