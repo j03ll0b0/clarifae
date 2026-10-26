@@ -36,6 +36,29 @@ cmake -S /tmp/tensorflow_src/tensorflow/lite/tools/cmake/native_tools/flatbuffer
 cmake --build /tmp/tensorflow_src/flatc-native-build -- -j$(nproc)
 HOST_TOOLS_DIR="/tmp/tensorflow_src/flatc-native-build"
 
+# PRE-DESCARGA LOCAL DE DEPENDENCIAS (Eigen + KleidiAI) — evita bloqueos de red/hash de GitLab
+EIGEN_DIR="/tmp/eigen_src"
+KLEIDI_DIR="/tmp/kleidiai_src"
+mkdir -p "$EIGEN_DIR" "$KLEIDI_DIR"
+
+echo ">> Descargando Eigen localmente..."
+if [ ! -f /tmp/eigen.tar.gz ]; then
+    curl -L -o /tmp/eigen.tar.gz https://gitlab.com/libeigen/eigen/-/archive/33d0937c6bdf5ec999939fb17f2a553183d14a74/eigen-33d0937c6bdf5ec999939fb17f2a553183d14a74.tar.gz
+fi
+if [ ! -f "$EIGEN_DIR/CMakeLists.txt" ]; then
+    tar -xzf /tmp/eigen.tar.gz -C /tmp --strip-components=1
+    mv /tmp/eigen-33d0937c6bdf5ec999939fb17f2a553183d14a74 "$EIGEN_DIR" 2>/dev/null || cp -r /tmp/eigen-33d0937c6bdf5ec999939fb17f2a553183d14a74/* "$EIGEN_DIR/"
+fi
+
+echo ">> Descargando KleidiAI localmente..."
+if [ ! -f /tmp/kleidiai.zip ]; then
+    curl -L -o /tmp/kleidiai.zip "https://gitlab.arm.com/kleidi/kleidiai/-/archive/847ebd19d0192528659b0a0fa2c6057eed674c6a/kleidiai-847ebd19d0192528659b0a0fa2c6057eed674c6a.zip"
+fi
+if [ ! -f "$KLEIDI_DIR/CMakeLists.txt" ] && [ -f /tmp/kleidiai.zip ]; then
+    unzip -q /tmp/kleidiai.zip -d /tmp/
+    mv /tmp/kleidiai-847ebd19d0192528659b0a0fa2c6057eed674c6a/* "$KLEIDI_DIR/" 2>/dev/null || cp -r /tmp/kleidiai-847ebd19d0192528659b0a0fa2c6057eed674c6a/* "$KLEIDI_DIR/"
+fi
+
 # 5. Crear directorios de destino
 mkdir -p "$HERE/tflite_ref/lib/arm64-v8a" "$HERE/tflite_ref/lib/armeabi-v7a" "$HERE/tflite_ref/lib/x86_64" "$HERE/tflite_ref/include"
 
@@ -57,15 +80,9 @@ for ABI in "${ABIS[@]}"; do
           -DTFLITE_C_BUILD_SHARED_LIBS=ON \
           -DTFLITE_HOST_TOOLS_DIR="$HOST_TOOLS_DIR" \
           -DTFLITE_ENABLE_INSTALL=OFF \
-          -Wno-dev
-
-    # 4. PARCHE DINÁMICO: Interceptar archivos .cmake descargados por XNNPACK (después de cmake -S, antes de cmake --build)
-    find "$BUILD_DIR" /tmp -type f -name "*.cmake" 2>/dev/null | while read f; do
-        if grep -q "f3ea4fce53f3b31076958dbff229f0048dae15bf454929673c78292a56279d52" "$f" 2>/dev/null; then
-            echo ">> Corrigiendo hash KleidiAI en $f ..."
-            sed -i 's/f3ea4fce53f3b31076958dbff229f0048dae15bf454929673c78292a56279d52/3564707756473a165ddb3cf670187a4eeb2189c71c5ef01e865567cab071daac/g' "$f"
-        fi
-    done
+          -Wno-dev \
+          -DKLEIDIAI_SOURCE_DIR="$KLEIDI_DIR" \
+          -DEIGEN_BUILD_DIR="$EIGEN_DIR"
 
     cmake --build "$BUILD_DIR" -j$(nproc) --target tensorflowlite_c
 
