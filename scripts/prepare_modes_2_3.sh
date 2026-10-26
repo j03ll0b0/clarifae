@@ -7,14 +7,23 @@ BUILD_DIR_BASE="$HERE/tflite_build"
 echo "=== Prepare binaries for modes 2 & 3 (32-bit + 64-bit) ==="
 echo ">> TFLite: compiling libtensorflowlite_c.so for Android ABIs from TF source v2.22.0-rc0 ..."
 
-# Asegurar flatc en el host vía apt para que CMake lo encuentre en /usr/bin
-sudo apt-get update && sudo apt-get install -y flatbuffers-compiler
+# 1. Compilar flatc nativo desde la fuente oficial de flatbuffers (evita desfase con apt v23)
+echo ">> Compilando flatc nativo desde google/flatbuffers ..."
+rm -rf /tmp/flatbuffers_src
+rm -rf /tmp/flatc-native-build
+git clone --depth 1 --branch master https://github.com/google/flatbuffers.git /tmp/flatbuffers_src || \
+git clone --depth 1 https://github.com/google/flatbuffers.git /tmp/flatbuffers_src
 
-# Clonar la versión v2.22.0-rc0 de TensorFlow
+mkdir -p /tmp/flatc-native-build
+cmake -S /tmp/flatbuffers_src -B /tmp/flatc-native-build -DCMAKE_BUILD_TYPE=Release
+cmake --build /tmp/flatc-native-build -- -j$(nproc)
+HOST_TOOLS_DIR="/tmp/flatc-native-build"
+
+# 2. Clonar la versión v2.22.0-rc0 de TensorFlow
 rm -rf /tmp/tensorflow_src
 git clone --depth 1 --branch v2.22.0-rc0 https://github.com/tensorflow/tensorflow.git /tmp/tensorflow_src
 
-# Crear directorios de destino
+# 3. Crear directorios de destino
 mkdir -p "$HERE/tflite_ref/lib/arm64-v8a" "$HERE/tflite_ref/lib/armeabi-v7a" "$HERE/tflite_ref/lib/x86_64" "$HERE/tflite_ref/include"
 
 ABIS=("arm64-v8a" "armeabi-v7a" "x86_64")
@@ -32,7 +41,7 @@ for ABI in "${ABIS[@]}"; do
           -DANDROID_PLATFORM=21 \
           -DCMAKE_BUILD_TYPE=Release \
           -DTFLITE_ENABLE_XNNPACK=OFF \
-          -DTFLITE_HOST_TOOLS_DIR=/usr/bin
+          -DTFLITE_HOST_TOOLS_DIR="$HOST_TOOLS_DIR"
 
     cmake --build "$BUILD_DIR" -j$(nproc) --target tensorflow-lite
 
