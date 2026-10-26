@@ -15,8 +15,7 @@ git clone --branch v2.21.0 https://github.com/tensorflow/tensorflow.git /tmp/ten
 FB_CMAKE_FILE="/tmp/tensorflow_src/tensorflow/lite/tools/cmake/modules/flatbuffers.cmake"
 if [ -f "$FB_CMAKE_FILE" ]; then
     echo ">> Parchando flatbuffers.cmake para usar FlatBuffers v24..."
-    sed -i 's/GIT_TAG.*]/GIT_TAG v24.3.25]/g' "$FB_CMAKE_FILE"
-    sed -i 's/v25\.[0-9]\+\.[0-9]\+\.[0-9]\+/v24.3.25/g' "$FB_CMAKE_FILE"
+    sed -i 's/GIT_TAG v25\.9\.23/GIT_TAG v24.12.23/g' "$FB_CMAKE_FILE"
 fi
 
 # 3. Compilar flatc nativo con el subproyecto interno de TFLite
