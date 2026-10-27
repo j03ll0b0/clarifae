@@ -79,13 +79,14 @@ for ABI in "${ABIS[@]}"; do
 
     cmake --build "$BUILD_DIR" -j$(nproc) --target tensorflowlite_c
 
-    # Buscar y copiar el .so generado
-    BUILT_SO=$(find "$BUILD_DIR" \( -name "libtensorflowlite_c.so" -o -name "libtensorflowlite.so" \) | head -n1)
-    if [ -n "$BUILT_SO" ]; then
-        cp "$BUILT_SO" "$HERE/tflite_ref/lib/$ABI/libtensorflowlite_c.so"
+    # Buscar y copiar el .so generado (nombre exacto que busca CMake: libtensorflowlite_c.so)
+    FOUND_SO=$(find "$BUILD_DIR" -name "libtensorflowlite_c.so" | head -n1)
+    if [ -n "$FOUND_SO" ]; then
+        mkdir -p "$HERE/tflite_ref/lib/$ABI"
+        cp "$FOUND_SO" "$HERE/tflite_ref/lib/$ABI/libtensorflowlite_c.so"
         echo ">> Éxito: libtensorflowlite_c.so copiado para $ABI"
     else
-        echo ">> ERROR: libtensorflowlite_c.so no encontrado para $ABI"
+        echo ">> ERROR: libtensorflowlite_c.so no encontrado para $ABI en $BUILD_DIR"
         exit 1
     fi
 done
