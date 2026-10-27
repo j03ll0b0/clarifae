@@ -37,10 +37,33 @@ API="${ANDROID_API:-26}"
 GEN="Unix Makefiles"; JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 if command -v ninja >/dev/null 2>&1; then GEN="Ninja"; fi
 
+# --- TFLite reference directory (modes 2 & 3) ---
+TFLITE_REF_DIR="${HERE}/tflite_ref"
+if [ -z "${TFLITE_DIR:-}" ]; then
+  if [ -d "$TFLITE_REF_DIR" ]; then
+    TFLITE_DIR="$TFLITE_REF_DIR"
+  else
+    echo "ERROR: TFLITE_DIR not set and $TFLITE_REF_DIR not found. Run scripts/prepare_modes_2_3.sh first."
+    exit 1
+  fi
+fi
+export TFLITE_DIR
+
+# --- Validate .so files exist per ABI before building ---
+for ABI in $ABIS; do
+  SO_FILE="$TFLITE_DIR/lib/$ABI/libtensorflowlite_c.so"
+  if [ ! -f "$SO_FILE" ]; then
+    echo "ERROR: Required TFLite binary missing: $SO_FILE"
+    echo "       Run scripts/prepare_modes_2_3.sh (or build mode 2/3 libraries) first."
+    exit 1
+  fi
+done
+echo ">> TFLITE_DIR: $TFLITE_DIR (validated for ABIs: $ABIS)"
+
 EXTRA=()
 CLARIFAE_WITH_DTLN="${CLARIFAE_WITH_DTLN:-ON}"
 CLARIFAE_WITH_DF="${CLARIFAE_WITH_DF:-ON}"
-[ "${CLARIFAE_WITH_DTLN}" = "ON" ] && EXTRA+=("-DCLARIFAE_WITH_DTLN=ON" "-DTFLITE_DIR=${TFLITE_DIR:?set TFLITE_DIR}")
+[ "${CLARIFAE_WITH_DTLN}" = "ON" ] && EXTRA+=("-DCLARIFAE_WITH_DTLN=ON" "-DTFLITE_DIR=${TFLITE_DIR}")
 [ "${CLARIFAE_WITH_DF}"   = "ON" ] && EXTRA+=("-DCLARIFAE_WITH_DF=ON"   "-DDF_DIR=${DF_DIR:?set DF_DIR}")
 
 for ABI in $ABIS; do
@@ -52,6 +75,7 @@ for ABI in $ABIS; do
         -DANDROID_ABI="$ABI" \
         -DANDROID_PLATFORM="android-$API" \
         -DCMAKE_BUILD_TYPE=Release \
+        -Wno-dev -Wno-author -Wno-deprecated \
         "${EXTRA[@]}"
   cmake --build "$BUILD" -j "$JOBS"
 

@@ -73,7 +73,7 @@ for ABI in "${ABIS[@]}"; do
           -DTFLITE_C_BUILD_SHARED_LIBS=ON \
           -DTFLITE_HOST_TOOLS_DIR="$HOST_TOOLS_DIR" \
           -DTFLITE_ENABLE_INSTALL=OFF \
-          -Wno-dev \
+          -Wno-dev -Wno-author -Wno-deprecated \
           -DKLEIDIAI_SOURCE_DIR="$KLEIDI_DIR" \
           -DEIGEN_BUILD_DIR="$EIGEN_DIR"
 
