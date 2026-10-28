@@ -32,7 +32,14 @@ if [ ! -f "$NATIVE/third_party/rnnoise/include/rnnoise.h" ]; then
   "$HERE/scripts/fetch_deps.sh"
 fi
 
-ABIS="${ABIS:-arm64-v8a armeabi-v7a x86_64}"
+ABIS="${ABIS:-}"
+if [ -z "$ABIS" ]; then
+  # Derive ABIs automatically from available .so libraries under tflite_ref/lib/
+  if [ -n "${TFLITE_DIR:-}" ] && [ -d "$TFLITE_DIR/lib" ]; then
+    ABIS="$(find "$TFLITE_DIR/lib" -mindepth 1 -maxdepth 1 -type f -name 'libtensorflowlite_c.so' | xargs -n1 dirname | xargs -n1 basename | sort -u | tr '\n' ' ')"
+  fi
+fi
+ABIS="${ABIS:-arm64-v8a armeabi-v7a}"
 API="${ANDROID_API:-26}"
 GEN="Unix Makefiles"; JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 if command -v ninja >/dev/null 2>&1; then GEN="Ninja"; fi
