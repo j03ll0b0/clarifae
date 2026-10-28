@@ -1,9 +1,6 @@
 #!/bin/bash
 set -uo pipefail
 
-# 0. CONFIGURACIÓN GLOBAL DE GIT CON PAT DE GITLAB (redactado en archivo persistente)
-git config --global url."https://oauth2:[REDACTED]@gitlab.com/".insteadOf "https://gitlab.com/"
-
 HERE="$(pwd)"
 BUILD_DIR_BASE="$HERE/tflite_build"
 
@@ -45,7 +42,7 @@ fi
 
 echo ">> Descargando KleidiAI localmente..."
 if [ ! -f /tmp/kleidiai.zip ]; then
-    curl -L -o /tmp/kleidiai.zip -H 'PRIVATE-TOKEN: [REDACTED]' "https://gitlab.arm.com/kleidi/kleidiai/-/archive/847ebd19d0192528659b0a0fa2c6057eed674c6a/kleidiai-847ebd19d0192528659b0a0fa2c6057eed674c6a.zip"
+    curl -L -o /tmp/kleidiai.zip "https://gitlab.arm.com/kleidi/kleidiai/-/archive/847ebd19d0192528659b0a0fa2c6057eed674c6a/kleidiai-847ebd19d0192528659b0a0fa2c6057eed674c6a.zip"
 fi
 if [ ! -f "$KLEIDI_DIR/CMakeLists.txt" ] && [ -f /tmp/kleidiai.zip ]; then
     unzip -q /tmp/kleidiai.zip -d /tmp/

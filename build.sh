@@ -34,9 +34,15 @@ fi
 
 ABIS="${ABIS:-}"
 if [ -z "$ABIS" ]; then
-  # Derive ABIs automatically from available .so libraries under tflite_ref/lib/
+  # Derive ABIs automatically from directories containing libtensorflowlite_c.so
   if [ -n "${TFLITE_DIR:-}" ] && [ -d "$TFLITE_DIR/lib" ]; then
-    ABIS="$(find "$TFLITE_DIR/lib" -mindepth 1 -maxdepth 1 -type f -name 'libtensorflowlite_c.so' | xargs -n1 dirname | xargs -n1 basename | sort -u | tr '\n' ' ')"
+    for d in "$TFLITE_DIR/lib"/*/; do
+      [ -d "$d" ] || continue
+      abi=$(basename "$d")
+      [ -f "$d/libtensorflowlite_c.so" ] || continue
+      ABIS="$ABIS $abi"
+    done
+    ABIS="$(echo "$ABIS" | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/^ *//;s/ *$//')"
   fi
 fi
 ABIS="${ABIS:-arm64-v8a armeabi-v7a}"
