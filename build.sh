@@ -63,14 +63,23 @@ fi
 export TFLITE_DIR
 
 # --- Validate .so files exist per ABI before building ---
+MISSING_SO=0
 for ABI in $ABIS; do
   SO_FILE="$TFLITE_DIR/lib/$ABI/libtensorflowlite_c.so"
   if [ ! -f "$SO_FILE" ]; then
-    echo "ERROR: Required TFLite binary missing: $SO_FILE"
-    echo "       Run scripts/prepare_modes_2_3.sh (or build mode 2/3 libraries) first."
-    exit 1
+    echo ">> TFLite binary missing for $ABI: $SO_FILE"
+    MISSING_SO=1
   fi
 done
+if [ "$MISSING_SO" -ne 0 ]; then
+  echo ">> Running scripts/prepare_modes_2_3.sh to build missing TFLite libraries..."
+  bash "$HERE/scripts/prepare_modes_2_3.sh" || { echo "ERROR: prepare_modes_2_3.sh failed"; exit 1; }
+  # Re-validate after build
+  for ABI in $ABIS; do
+    SO_FILE="$TFLITE_DIR/lib/$ABI/libtensorflowlite_c.so"
+    [ -f "$SO_FILE" ] || { echo "ERROR: $SO_FILE still missing after prepare_modes_2_3.sh"; exit 1; }
+  done
+fi
 echo ">> TFLITE_DIR: $TFLITE_DIR (validated for ABIs: $ABIS)"
 
 EXTRA=()
