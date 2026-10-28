@@ -56,19 +56,34 @@ if [ -z "${TFLITE_DIR:-}" ]; then
   if [ -d "$TFLITE_REF_DIR" ]; then
     TFLITE_DIR="$TFLITE_REF_DIR"
   else
-    echo "ERROR: TFLITE_DIR not set and $TFLITE_REF_DIR not found. Run scripts/prepare_modes_2_3.sh first."
+    echo "ERROR: TFLITE_DIR no está configurado y $TFLITE_REF_DIR no existe."
+    echo "   Directorio esperado (absoluto): $(readlink -f "$TFLITE_REF_DIR" 2>/dev/null || echo $TFLITE_REF_DIR)"
+    echo "   Directorio actual (pwd): $(pwd)"
+    echo "   Ejecute: bash scripts/prepare_modes_2_3.sh (desde este directorio: $(pwd))"
     exit 1
   fi
 fi
+TFLITE_DIR="$(readlink -f "$TFLITE_DIR")"
 export TFLITE_DIR
+
+echo ">> TFLITE_DIR (absoluto): $TFLITE_DIR"
+echo ">> Directorio actual (pwd): $(pwd)"
+echo ">> Directorio del script (HERE): $(readlink -f "$HERE")"
 
 # --- Validate .so files exist per ABI before building ---
 MISSING_SO=0
 for ABI in $ABIS; do
   SO_FILE="$TFLITE_DIR/lib/$ABI/libtensorflowlite_c.so"
+  SO_FILE_ABS="$(readlink -f "$SO_FILE" 2>/dev/null || echo "$SO_FILE")"
   if [ ! -f "$SO_FILE" ]; then
-    echo ">> TFLite binary missing for $ABI: $SO_FILE"
+    echo ">> TFLite binary missing for $ABI: $SO_FILE_ABS"
+    echo "   Directorio del ABI (abs): $(dirname "$SO_FILE_ABS")"
+    echo "   Contenido de ese directorio:"
+    ls -la "$(dirname "$SO_FILE_ABS")" 2>/dev/null || echo "      (directorio no existe)"
+    echo "   TFLITE_DIR completo (abs): $TFLITE_DIR"
     MISSING_SO=1
+  else
+    echo ">> TFLite binary encontrado para $ABI: $SO_FILE_ABS ($(du -h "$SO_FILE" | cut -f1))"
   fi
 done
 if [ "$MISSING_SO" -ne 0 ]; then
@@ -77,10 +92,19 @@ if [ "$MISSING_SO" -ne 0 ]; then
   # Re-validate after build
   for ABI in $ABIS; do
     SO_FILE="$TFLITE_DIR/lib/$ABI/libtensorflowlite_c.so"
-    [ -f "$SO_FILE" ] || { echo "ERROR: $SO_FILE still missing after prepare_modes_2_3.sh"; exit 1; }
+    SO_FILE_ABS="$(readlink -f "$SO_FILE" 2>/dev/null || echo "$SO_FILE")"
+    if [ ! -f "$SO_FILE" ]; then
+      echo ">> ERROR: $SO_FILE_ABS aún no existe después de prepare_modes_2_3.sh"
+      echo "   Contenido de $(dirname "$SO_FILE_ABS"):"
+      ls -la "$(dirname "$SO_FILE_ABS")" 2>/dev/null || echo "      (directorio no existe)"
+      echo "   prepare_modes_2_3.sh guardó el archivo en: $HERE/tflite_ref/lib/$ABI/"
+      exit 1
+    fi
+    echo ">> Confirmado: $SO_FILE_ABS existe tras prepare_modes_2_3.sh ($(du -h "$SO_FILE" | cut -f1))"
   done
 fi
-echo ">> TFLITE_DIR: $TFLITE_DIR (validated for ABIs: $ABIS)"
+echo ">> TFLITE_DIR (absoluto): $TFLITE_DIR (validated para ABIs: $ABIS)"
+echo ">> build.sh usará los .so de $TFLITE_DIR/lib/<ABI>/libtensorflowlite_c.so para el paso de CMake"
 
 EXTRA=()
 CLARIFAE_WITH_DTLN="${CLARIFAE_WITH_DTLN:-ON}"

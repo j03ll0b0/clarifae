@@ -1,7 +1,8 @@
 #!/bin/bash
 set -uo pipefail
 
-HERE="$(pwd)"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+HERE="$(readlink -f "$HERE")"
 BUILD_DIR_BASE="$HERE/tflite_build"
 
 echo "=== Prepare binaries for modes 2 & 3 (32-bit + 64-bit) ==="
@@ -80,8 +81,11 @@ for ABI in "${ABIS[@]}"; do
     FOUND_SO=$(find "$BUILD_DIR" -name "libtensorflowlite_c.so" | head -n1)
     if [ -n "$FOUND_SO" ]; then
         mkdir -p "$HERE/tflite_ref/lib/$ABI"
-        cp "$FOUND_SO" "$HERE/tflite_ref/lib/$ABI/libtensorflowlite_c.so"
+        DEST_FILE="$HERE/tflite_ref/lib/$ABI/libtensorflowlite_c.so"
+        cp "$FOUND_SO" "$DEST_FILE"
         echo ">> Éxito: libtensorflowlite_c.so copiado para $ABI"
+        echo "   -> lo guardé en este directorio (ruta completa): $DEST_FILE"
+        echo "   -> archivo generado desde: $(readlink -f "$FOUND_SO")"
     else
         echo ">> ERROR: libtensorflowlite_c.so no encontrado para $ABI en $BUILD_DIR"
         exit 1
@@ -93,3 +97,13 @@ mkdir -p "$HERE/tflite_ref/include/tensorflow/lite/c"
 cp -r /tmp/tensorflow_src/tensorflow/lite/c/*.h "$HERE/tflite_ref/include/tensorflow/lite/c/" 2>/dev/null || cp -r /tmp/tensorflow_src/tensorflow/lite/c "$HERE/tflite_ref/include/"
 
 echo ">> ¡Proceso completado con éxito para todos los ABIs!"
+echo ">> Los archivos libtensorflowlite_c.so fueron guardados en (rutas completas):"
+for ABI in arm64-v8a armeabi-v7a; do
+  FILE="$HERE/tflite_ref/lib/$ABI/libtensorflowlite_c.so"
+  if [ -f "$FILE" ]; then
+    echo "   $ABI -> $(readlink -f "$FILE") ($(du -h "$FILE" | cut -f1))"
+  else
+    echo "   $ABI -> $FILE (NO ENCONTRADO)"
+  fi
+done
+echo ">> build.sh los buscará en TFLITE_DIR/lib/<ABI>/libtensorflowlite_c.so"
