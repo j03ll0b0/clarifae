@@ -94,6 +94,20 @@ done
 
 # Copiar cabeceras necesarias
 mkdir -p "$HERE/tflite_ref/include/tensorflow/lite/c"
+mkdir -p "$HERE/tflite_ref/include/tensorflow/lite/core/c"
+cp -r /tmp/tensorflow_src/tensorflow/lite/core/c/*.h "$HERE/tflite_ref/include/tensorflow/lite/core/c/" 2>/dev/null || true
+find /tmp/tensorflow_src/tensorflow/compiler/mlir/lite/core/c -name "*.h" 2>/dev/null | while read h; do
+  rel="${h#/tmp/tensorflow_src/}"
+  target="$HERE/tflite_ref/include/$rel"
+  mkdir -p "$(dirname "$target")"
+  cp -f "$h" "$target"
+done
+find /tmp/tensorflow_src/tensorflow/lite -name "*.h" | while read h; do
+  rel="${h#/tmp/tensorflow_src/}"
+  target="$HERE/tflite_ref/include/$rel"
+  mkdir -p "$(dirname "$target")"
+  cp -f "$h" "$target"
+done
 cp -r /tmp/tensorflow_src/tensorflow/lite/c/*.h "$HERE/tflite_ref/include/tensorflow/lite/c/" 2>/dev/null || cp -r /tmp/tensorflow_src/tensorflow/lite/c "$HERE/tflite_ref/include/"
 
 echo ">> ¡Proceso completado con éxito para todos los ABIs!"

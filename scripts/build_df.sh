@@ -34,13 +34,12 @@ fi
 # FORCE CACHE PURGE: Wipe out old target data to ensure standard libraries are re-evaluated from scratch
 rm -rf .cargo/config.toml target/
 
-for ABI in "arm64-v8a" "armeabi-v7a" "x86_64"; do
+for ABI in "arm64-v8a" "armeabi-v7a"; do
   echo ">> Building libdf CAPI for $ABI ..."
 
   case $ABI in
     "arm64-v8a")   TARGET="aarch64-linux-android"; LINKER_ARCH="aarch64" ;;
     "armeabi-v7a") TARGET="armv7-linux-androideabi"; LINKER_ARCH="arm" ;;
-    "x86_64")      TARGET="x86_64-linux-android"; LINKER_ARCH="x86_64" ;;
   esac
 
   DEST_DIR="$LIBDF_DIR/target/ndk-$ABI/release"

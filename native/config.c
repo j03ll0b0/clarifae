@@ -8,13 +8,11 @@
 #include <sys/system_properties.h>
 #include <stdint.h>
 
-/* Manual declarations for Android NDK property functions not fully exposed in public headers */
-struct prop_info;  /* opaque; only pointer used */
-extern struct prop_info* __system_property_find(const char* name);
-extern uint32_t __system_property_serial(const struct prop_info* pi);
-
-/* Declaration for Android NDK property serial function */
-extern uint32_t __system_property_serial(const prop_info* pi);
+/* Declarations matching NDK r27 public headers */
+struct prop_info;
+const struct prop_info* __system_property_find(const char* name);
+uint32_t __system_property_serial(const struct prop_info* pi);
+int __system_property_get(const char* name, char* value);
 #include <stdlib.h>
 #include <string.h>
 
@@ -81,7 +79,7 @@ void clarifae_config_load(clarifae_config_t* cfg) {
 static uint32_t serial_sum(void) {
     uint32_t s = 0;
     for (size_t i = 0; i < NPROPS; i++) {
-        const prop_info* pi = __system_property_find(kProps[i]);
+        const struct prop_info* pi = __system_property_find(kProps[i]);
         if (pi) s += __system_property_serial(pi);
     }
     return s;

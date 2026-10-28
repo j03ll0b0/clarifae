@@ -22,7 +22,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
-          targets: aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+          target: aarch64-linux-android armv7-linux-androideabi
           override: true
           cache: false
 
@@ -67,6 +67,13 @@ jobs:
         run: |
           bash scripts/prepare_modes_2_3.sh 2>&1
 
+      - name: Build DeepFilterNet libdf (C-FFI) for Android ABIs
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+          RUSTUP_TOOLCHAIN: stable
+        run: |
+          bash scripts/build_df.sh 2>&1 || { echo "ERROR: build_df.sh failed"; exit 1; }
+
       - name: Build with optional backends enabled
         env:
           # Heredamos el NDK sincronizado desde el paso Export
@@ -75,29 +82,27 @@ jobs:
           CLARIFAE_WITH_DTLN: ON
           CLARIFAE_WITH_DF: ON
           TFLITE_DIR: ${{ github.workspace }}/tflite_ref
-          DF_DIR: ${{ github.workspace }}/models/df/libDF/target/ndk-arm64-v8a/release
+          DF_DIR: ${{ github.workspace }}/models/df/libDF
         run: |
           bash ./build.sh 2>&1 || { echo "ERROR: build.sh failed"; exit 1; }
 
-      - name: Upload build artifacts (32-bit + 64-bit + x86_64, modes 2 & 3)
+      - name: Package Magisk module
+        if: success()
+        run: |
+          bash scripts/package.sh 2>&1 || { echo "ERROR: package.sh failed"; exit 1; }
+
+      - name: Upload module artifact (v1.1.2, modes 2+3)
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: clarifae-build-modes-2-3
+          name: clarifae-v1.1.2
           path: |
-            lib/
-            build/
-            tflite_ref/lib/
-            tflite_ref/include/
-            models/df/libDF/target/ndk-arm64-v8a/release/
-            models/df/libDF/target/ndk-armeabi-v7a/release/
-            models/df/libDF/target/ndk-x86_64/release/
-            scripts/
+            dist/clarifae-*.zip
           retention-days: 30
 
-      - name: Verify artifacts
+      - name: Verify module artifact
         run: |
-          echo "=== Verification ==="
-          ls -la lib/*/libclarifae.so 2>/dev/null || echo "No lib/*.so produced"
-          find build -name '*.so' 2>/dev/null | head -n5 || echo "No build/*.so"
+          echo "=== Module artifact ==="
+          ls -lh dist/clarifae-*.zip 2>/dev/null || echo "No dist/*.zip produced"
+          unzip -l dist/clarifae-*.zip 2>/dev/null | head -30 || echo "No zip contents"
           echo "=== Workflow finished ==="

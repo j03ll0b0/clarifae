@@ -32,6 +32,12 @@ rm -f "$OUT"
     -x 'README.md' \
     -x 'INSTALL.md' \
     -x 'realtime_audio_denoising_models.md' \
+    -x 'tflite_ref/lib/*' \
+    -x 'tflite_ref/lib/*/*' \
+    -x 'models/df/libDF/*' \
+    -x 'models/df/libDF/*/*' \
+    -x 'models/df/libDF/*/*/*' \
+    -x 'models/df/libDF/*/*/*/*' \
     -x 'brand.txt' \
     -x 'logo.svg' >/dev/null )
 
