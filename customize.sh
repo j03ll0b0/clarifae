@@ -63,7 +63,7 @@ chmod 0755 "$CLARIFAE_DIR/clarifae-ctl"
 
 # --- auto-attach the effect via audio_effects.xml ---
 ui_print "- Registering Clarifae pre-processing effect..."
-if patch_audio_effects "$MODPATH"; then
+if patch_audio_effects "$MODULE_DIR"; then
   ui_print "  + audio_effects patched: $(cat "$PATCH_MARK")"
 else
   ui_print "  ! Auto-patch of audio_effects.xml failed on this device."
