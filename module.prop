@@ -1,6 +1,6 @@
 id=clarifae
 name=Clarifae
-version=v1.1.2
+version=v1.1.2-rn-dtln-df
 versionCode=10102
 author=Clarifae Project
 description=Real-time AI microphone clarity (RNNoise / DTLN / DeepFilterNet) inserted as an Android audio pre-processing effect. Configure modes and strength from the KernelSU/MMRL WebUI.
