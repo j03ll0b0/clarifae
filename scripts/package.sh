@@ -113,7 +113,7 @@ for check in common/audio_effects.clarifae.xml customize.sh service.sh module.pr
   fi
 done
 # Check that at least one .so ABI is bundled (if build was run)
-if ! unzip -l "$OUT" 2>/dev/null | awk 'NR>3 {print $4}' | grep -qE 'lib/(arm64-v8a|armeabi-v7a|x86_64)/libclarifae\.so'; then
+if ! unzip -l "$OUT" 2>/dev/null | awk 'NR>3 {print $4}' | grep -qE 'lib/(arm64-v8a|armeabi-v7a)/libclarifae\.so'; then
   echo "WARNING: no lib/<abi>/libclarifae.so found in zip. Run ./build.sh first." >&2
   MISSING=1
 fi
