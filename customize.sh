@@ -33,6 +33,14 @@ mkdir -p "$MODPATH/system/$LIBD/soundfx"
 cp -f "$MODPATH/lib/$ABI/libclarifae.so" "$MODPATH/system/$LIBD/soundfx/libclarifae.so"
 ui_print "- Installed libclarifae.so ($ABI) -> system/$LIBD/soundfx"
 
+# --- install libdf.so (DeepFilterNet C-FFI) for CLARIFAE_WITH_DF ---
+for df_candidate in "$MODPATH/models/df/libDF/staging-$ABI/libdf.so" "$MODPATH/models/df/libDF/target/ndk-$ABI/release/libdf.so" "$MODPATH/models/df/libDF/libdf.so"; do
+  [ -f "$df_candidate" ] || continue
+  cp -f "$df_candidate" "$MODPATH/system/$LIBD/soundfx/libdf.so"
+  ui_print "- Installed libdf.so ($ABI) -> system/$LIBD/soundfx/libdf.so"
+  break
+done
+
 # drop per-ABI archive + any stray dev dirs to keep the installed module small
 rm -rf "$MODPATH/lib" "$MODPATH/native" "$MODPATH/build" 2>/dev/null
 
