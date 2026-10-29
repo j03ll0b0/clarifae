@@ -38,6 +38,24 @@ rm -f "$OUT"
     -x 'models/df/libDF/*/*' \
     -x 'models/df/libDF/*/*/*' \
     -x 'models/df/libDF/*/*/*/*' \
+    -x 'models/df/target/*' \
+    -x 'models/df/target/*/*' \
+    -x 'models/df/target/*/*/*' \
+    -x 'models/df/target/*/*/*/*' \
+    -x 'models/df/target/*/*/*/*/*' \
+    -x 'models/df/models/*.tar.gz' \
+    -x 'models/df/models/*.zip' \
+    -x 'models/df/assets/*' \
+    -x 'models/df/assets/*/*' \
+    -x 'models/df/demo/*' \
+    -x 'models/df/demo/*/*' \
+    -x 'models/df/scripts/*' \
+    -x 'models/dtln/pretrained_model/*' \
+    -x 'models/dtln/pretrained_model/*/*' \
+    -x 'models/dtln/pretrained_model/*/*/*' \
+    -x 'models/dtln/pretrained_model/*/*/*/*' \
+    -x 'tflite_build/*' \
+    -x '*.DS_Store' \
     -x 'brand.txt' \
     -x 'logo.svg' >/dev/null )
 
