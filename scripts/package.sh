@@ -55,6 +55,18 @@ rm -f "$OUT"
     -x 'models/dtln/pretrained_model/*/*/*' \
     -x 'models/dtln/pretrained_model/*/*/*/*' \
     -x 'tflite_build/*' \
+    -x 'tflite_ref/*' \
+    -x 'tflite_ref/*/*' \
+    -x 'tflite_ref/*/*/*' \
+    -x 'tflite_ref/*/*/*/*' \
+    -x 'tflite_ref/*/*/*/*/*' \
+    -x 'models/df/*' \
+    -x 'models/df/*/*' \
+    -x 'models/df/*/*/*' \
+    -x 'models/df/*/*/*/*' \
+    -x 'models/df/*/*/*/*/*' \
+    -x 'models/df/*.tar.gz' \
+    -x 'models/df/*.zip' \
     -x '*.DS_Store' \
     -x 'brand.txt' \
     -x 'logo.svg' >/dev/null )
