@@ -24,6 +24,12 @@ done
 [ -d "$MOD/META-INF" ] && cp -r "$MOD/META-INF" "$STAGE/"
 [ -d "$MOD/webroot" ] && cp -r "$MOD/webroot" "$STAGE/"
 
+# Copiar TFLite binaries al stage para que zip los vea dentro de STAGE
+if [ -d "$MOD/tflite_ref/lib" ]; then
+    mkdir -p "$STAGE/tflite_ref/lib"
+    cp -r "$MOD/tflite_ref/lib/"* "$STAGE/tflite_ref/lib/"
+fi
+
 # ============================================================================
 # 2. AUDIO LIBRARIES (libclarifae.so)
 # ============================================================================
