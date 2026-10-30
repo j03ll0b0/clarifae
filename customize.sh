@@ -41,6 +41,14 @@ for df_candidate in "$MODPATH/models/df/libDF/staging-$ABI/libdf.so" "$MODPATH/m
   break
 done
 
+# --- install libtensorflowlite_c.so (TFLite C library, required for DTLN mode 2) ---
+for tflite_candidate in "$MODPATH/tflite_ref/lib/$ABI/libtensorflowlite_c.so" "$MODPATH/tflite_ref/lib/libtensorflowlite_c.so" "$MODPATH/tflite_ref/libtensorflowlite_c.so"; do
+  [ -f "$tflite_candidate" ] || continue
+  cp -f "$tflite_candidate" "$MODPATH/system/$LIBD/soundfx/libtensorflowlite_c.so"
+  ui_print "- Installed libtensorflowlite_c.so ($ABI) -> system/$LIBD/soundfx/libtensorflowlite_c.so"
+  break
+done
+
 # drop per-ABI archive + any stray dev dirs to keep the installed module small
 rm -rf "$MODPATH/lib" "$MODPATH/native" "$MODPATH/build" 2>/dev/null
 
@@ -78,6 +86,10 @@ set_perm_recursive "$MODPATH" 0 0 0755 0644
 set_perm "$MODPATH/system/bin/clarifae-ctl" 0 0 0755
 [ -f "$MODPATH/system/lib64/soundfx/libclarifae.so" ] && set_perm "$MODPATH/system/lib64/soundfx/libclarifae.so" 0 0 0644
 [ -f "$MODPATH/system/lib/soundfx/libclarifae.so" ]   && set_perm "$MODPATH/system/lib/soundfx/libclarifae.so" 0 0 0644
+[ -f "$MODPATH/system/lib64/soundfx/libdf.so" ]         && set_perm "$MODPATH/system/lib64/soundfx/libdf.so" 0 0 0644
+[ -f "$MODPATH/system/lib/soundfx/libdf.so" ]           && set_perm "$MODPATH/system/lib/soundfx/libdf.so" 0 0 0644
+[ -f "$MODPATH/system/lib64/soundfx/libtensorflowlite_c.so" ] && set_perm "$MODPATH/system/lib64/soundfx/libtensorflowlite_c.so" 0 0 0644
+[ -f "$MODPATH/system/lib/soundfx/libtensorflowlite_c.so" ]   && set_perm "$MODPATH/system/lib/soundfx/libtensorflowlite_c.so" 0 0 0644
 
 ui_print " "
 ui_print "  Installed. Reboot, then open the WebUI:"

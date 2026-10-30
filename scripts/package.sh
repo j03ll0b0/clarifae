@@ -32,8 +32,12 @@ rm -f "$OUT"
     -x 'README.md' \
     -x 'INSTALL.md' \
     -x 'realtime_audio_denoising_models.md' \
-    -x 'tflite_ref/lib/*' \
-    -x 'tflite_ref/lib/*/*' \
+    -x 'tflite_ref/include/*' \
+    -x 'tflite_ref/include/*/*' \
+    -x 'tflite_ref/include/*/*/*' \
+    -x 'tflite_ref/*.txt' \
+    -x 'tflite_ref/*.md' \
+    -x 'tflite_ref/lib/*/*.h' \
     -x 'models/df/libDF/src/*' \
     -x 'models/df/libDF/src/*/*' \
     -x 'models/df/libDF/src/*/*/*' \
@@ -84,11 +88,6 @@ rm -f "$OUT"
     -x 'models/dtln/pretrained_model/*/*/*' \
     -x 'models/dtln/pretrained_model/*/*/*/*' \
     -x 'tflite_build/*' \
-    -x 'tflite_ref/*' \
-    -x 'tflite_ref/*/*' \
-    -x 'tflite_ref/*/*/*' \
-    -x 'tflite_ref/*/*/*/*' \
-    -x 'tflite_ref/*/*/*/*/*' \
     -x '.github/*' \
     -x '.github/*/*' \
     -x '.github/*/*/*' \
@@ -120,6 +119,20 @@ fi
 # Check model weights (.zip) are present
 if ! unzip -l "$OUT" 2>/dev/null | awk 'NR>3 {print $4}' | grep -qE 'models/df/models/DeepFilterNet[0-9]?\.zip'; then
   echo "WARNING: DeepFilterNet model .zip files missing from models/df/models/" >&2
+  MISSING=1
+fi
+# Check TFLite binary for modes 2 & 3 (dynamically linked)
+if unzip -l "$OUT" 2>/dev/null | awk 'NR>3 {print $4}' | grep -qE 'tflite_ref/lib/(arm64-v8a|armeabi-v7a)/libtensorflowlite_c\.so'; then
+  : # present
+else
+  echo "WARNING: libtensorflowlite_c.so missing from zip (tflite_ref/lib/<abi>/). Mode 2 (DTLN) will crash at runtime." >&2
+  MISSING=1
+fi
+# Check libdf binary for mode 3 (DeepFilterNet)
+if unzip -l "$OUT" 2>/dev/null | awk 'NR>3 {print $4}' | grep -qE 'models/df/libDF/(staging-(arm64-v8a|armeabi-v7a)|target/ndk-(arm64-v8a|armeabi-v7a)/release)/libdf\.so'; then
+  : # present
+else
+  echo "WARNING: libdf.so missing from zip (models/df/libDF/...). Mode 3 (DeepFilterNet) will fail." >&2
   MISSING=1
 fi
 if [ "$MISSING" -ne 0 ]; then
