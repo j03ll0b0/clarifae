@@ -121,7 +121,7 @@ if ! unzip -l "$OUT" 2>/dev/null | awk 'NR>3 {print $4}' | grep -qE 'models/df/m
   echo "WARNING: DeepFilterNet model .zip files missing from models/df/models/" >&2
   MISSING=1
 fi
-# Check TFLite binary for modes 2 & 3 (dynamically linked)
+# Check TFLite binary for mode 2 (DTLN, dynamically linked)
 if unzip -l "$OUT" 2>/dev/null | awk 'NR>3 {print $4}' | grep -qE 'tflite_ref/lib/(arm64-v8a|armeabi-v7a)/libtensorflowlite_c\.so'; then
   : # present
 else
