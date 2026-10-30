@@ -1,109 +1,100 @@
 #!/usr/bin/env bash
-# package.sh — zip the module into a flashable dist/clarifae-<ver>.zip.
-# Excludes build-only material (native sources, build dirs, host scripts).
+# package.sh — Staged build packager for dist/clarifae-<ver>.zip.
 set -euo pipefail
 
 MOD="$(cd "$(dirname "$0")/.." && pwd)"     # project root == module root
 VER="$(grep '^version=' "$MOD/module.prop" | cut -d= -f2)"
 OUT="$MOD/dist/clarifae-$VER.zip"
+STAGE="$MOD/dist/stage"
 
-# Warn (don't fail) if the native lib hasn't been built yet.
-if ! ls "$MOD"/system/lib*/soundfx/libclarifae.so >/dev/null 2>&1 \
-   && ! ls "$MOD"/lib/*/libclarifae.so >/dev/null 2>&1; then
-  echo "WARNING: no libclarifae.so staged. Run ./build.sh first or the zip won't install." >&2
+echo "[*] Cleaning up old deployment targets..."
+rm -rf "$MOD/dist"
+mkdir -p "$STAGE"
+
+# ============================================================================
+# 1. CORE ROOT FILES
+# ============================================================================
+echo "[*] Copying core flash infrastructure..."
+ROOT_FILES=(module.prop customize.sh service.sh post-fs-data.sh sepolicy.rule system.prop uninstall.sh)
+for file in "${ROOT_FILES[@]}"; do
+    [ -f "$MOD/$file" ] && cp -f "$MOD/$file" "$STAGE/"
+done
+
+[ -d "$MOD/common" ] && cp -r "$MOD/common" "$STAGE/"
+[ -d "$MOD/META-INF" ] && cp -r "$MOD/META-INF" "$STAGE/"
+[ -d "$MOD/webroot" ] && cp -r "$MOD/webroot" "$STAGE/"
+
+# ============================================================================
+# 2. AUDIO LIBRARIES (libclarifae.so)
+# ============================================================================
+echo "[*] Routing primary libclarifae binary channels..."
+mkdir -p "$STAGE/lib"
+
+if [ -d "$MOD/lib" ]; then
+    cp -r "$MOD/lib/"* "$STAGE/lib/"
+elif [ -d "$MOD/build" ]; then
+    for abi_dir in "$MOD"/build/*/; do
+        [ -d "$abi_dir" ] || continue
+        abi=$(basename "$abi_dir")
+        for so in "$abi_dir/lib/libclarifae.so" "$abi_dir/lib/$abi/libclarifae.so"; do
+            if [ -f "$so" ]; then
+                mkdir -p "$STAGE/lib/$abi"
+                cp -f "$so" "$STAGE/lib/$abi/libclarifae.so"
+                break
+            fi
+        done
+    done
 fi
 
-mkdir -p "$MOD/dist"
-rm -f "$OUT"
+# ============================================================================
+# 3. EXTRA SYSTEM SO TARGETS (DTLN & DeepFilterNet support files)
+# ============================================================================
+echo "[*] Handling third-party dynamic binary maps..."
 
-# Zip the module, excluding build-only material AND the repo docs/assets that now
-# live alongside the module in the same folder.
-( cd "$MOD" && zip -r9 "$OUT" . \
-    -x 'native/*' \
-    -x 'build/*' \
-    -x 'scripts/*' \
-    -x 'build.sh' \
-    -x 'dist/*' \
-    -x 'docs/*' \
-    -x '.git/*' \
-    -x '*.o' \
-    -x '*.tmp*' \
-    -x 'rnnoise-*.tar.gz' \
-    -x 'README.md' \
-    -x 'INSTALL.md' \
-    -x 'realtime_audio_denoising_models.md' \
-    -x 'tflite_ref/include/*' \
-    -x 'tflite_ref/include/*/*' \
-    -x 'tflite_ref/include/*/*/*' \
-    -x 'tflite_ref/*.txt' \
-    -x 'tflite_ref/*.md' \
-    -x 'tflite_ref/lib/*/*.h' \
-    -x 'models/df/libDF/src/*' \
-    -x 'models/df/libDF/src/*/*' \
-    -x 'models/df/libDF/src/*/*/*' \
-    -x 'models/df/libDF/src/*/*/*/*' \
-    -x 'models/df/libDF/Cargo.toml' \
-    -x 'models/df/libDF/Cargo.lock' \
-    -x 'models/df/libDF/.cargo/config.toml' \
-    -x 'models/df/libDF/post-release.sh' \
-    -x 'models/df/libDF/release.sh' \
-    -x 'models/df/libDF/target/debug/*' \
-    -x 'models/df/libDF/target/debug/*/*' \
-    -x 'models/df/libDF/target/debug/*/*/*' \
-    -x 'models/df/libDF/target/debug/*/*/*/*' \
-    -x 'models/df/libDF/target/debug/*/*/*/*/*' \
-    -x 'models/df/libDF/clippy.toml' \
-    -x 'models/df/libDF/rustfmt.toml' \
-    -x 'models/df/target/*' \
-    -x 'models/df/target/*/*' \
-    -x 'models/df/target/*/*/*' \
-    -x 'models/df/target/*/*/*/*' \
-    -x 'models/df/target/*/*/*/*/*' \
-    -x 'models/df/assets/*' \
-    -x 'models/df/assets/*/*' \
-    -x 'models/df/demo/*' \
-    -x 'models/df/demo/*/*' \
-    -x 'models/df/scripts/*' \
-    -x 'models/df/pyDF/*' \
-    -x 'models/df/pyDF/*/*' \
-    -x 'models/df/pyDF/*/*/*' \
-    -x 'models/df/pyDF/*/*/*/*' \
-    -x 'models/df/pyDF-data/*' \
-    -x 'models/df/pyDF-data/*/*' \
-    -x 'models/df/pyDF-data/*/*/*' \
-    -x 'models/df/pyDF-data/*/*/*/*' \
-    -x 'models/df/DeepFilterNet/*' \
-    -x 'models/df/DeepFilterNet/*/*' \
-    -x 'models/df/DeepFilterNet/*/*/*' \
-    -i 'models/df/DeepFilterNet/LICENSE*' \
-    -x 'models/df/post-release.sh' \
-    -x 'models/df/release.sh' \
-    -x 'models/df/clippy.toml' \
-    -x 'models/df/rustfmt.toml' \
-    -x 'models/df/Cargo.lock' \
-    -x 'models/df/Cargo.toml' \
-    -x 'models/df/README.md' \
-    -x 'models/dtln/pretrained_model/*' \
-    -x 'models/dtln/pretrained_model/*/*' \
-    -x 'models/dtln/pretrained_model/*/*/*' \
-    -x 'models/dtln/pretrained_model/*/*/*/*' \
-    -x 'tflite_build/*' \
-    -x '.github/*' \
-    -x '.github/*/*' \
-    -x '.github/*/*/*' \
-    -x 'models/df/assets/*' \
-    -x 'models/df/assets/*/*' \
-    -x '*.DS_Store' \
-    -x 'brand.txt' \
-    -x 'logo.svg' >/dev/null )
+if [ -d "$MOD/tflite_ref/lib" ]; then
+    mkdir -p "$STAGE/tflite_ref/lib"
+    cp -r "$MOD/tflite_ref/lib/"* "$STAGE/tflite_ref/lib/"
+fi
 
-echo "Created: $OUT  ($(du -h "$OUT" | cut -f1))"
-echo "Contents (top level):"
-unzip -l "$OUT" | awk 'NR>3 && $4 !~ /\// {print "  "$4}' | head -20
-echo "  ..."
+mkdir -p "$STAGE/models/df/libDF"
+for abi in arm64-v8a armeabi-v7a; do
+    SRC_SO=""
+    if [ -f "$MOD/models/df/libDF/staging-$abi/libdf.so" ]; then
+        SRC_SO="$MOD/models/df/libDF/staging-$abi/libdf.so"
+    elif [ -f "$MOD/models/df/libDF/target/ndk-$abi/release/libdf.so" ]; then
+        SRC_SO="$MOD/models/df/libDF/target/ndk-$abi/release/libdf.so"
+    fi
+
+    if [ -n "$SRC_SO" ]; then
+        mkdir -p "$STAGE/models/df/libDF/staging-$abi"
+        cp -f "$SRC_SO" "$STAGE/models/df/libDF/staging-$abi/libdf.so"
+    fi
+done
+
+# ============================================================================
+# 4. NEURAL NETWORK MODEL WEIGHTS
+# ============================================================================
+echo "[*] Extracting model weight archives..."
+mkdir -p "$STAGE/models/df/models"
+
+[ -f "$MOD/models/df/DeepFilterNet/LICENSE-APACHE" ] && \
+    mkdir -p "$STAGE/models/df/DeepFilterNet" && \
+    cp "$MOD/models/df/DeepFilterNet/LICENSE-APACHE" "$STAGE/models/df/DeepFilterNet/"
+
+find "$MOD/models/df/models" -maxdepth 1 -type f -name "DeepFilterNet*.zip" -exec cp -f {} "$STAGE/models/df/models/" \; || true
+
+# ============================================================================
+# 5. FINAL PACKAGING & COMPRESSION
+# ============================================================================
+echo "[*] Commencing clean zip build sequence..."
+( cd "$STAGE" && zip -r9 "$OUT" ./* >/dev/null )
+
+rm -rf "$STAGE"
+
+echo "Created: $OUT ($(du -h "$OUT" | cut -f1))"
+echo "Contents verification profile initialized..."
 echo
 
-# Verify critical files are present in the zip
 MISSING=0
 for check in common/audio_effects.clarifae.xml customize.sh service.sh module.prop webroot/index.html; do
   if ! unzip -l "$OUT" | awk 'NR>3 {print $4}' | grep -qxF "$check"; then
@@ -111,32 +102,31 @@ for check in common/audio_effects.clarifae.xml customize.sh service.sh module.pr
     MISSING=1
   fi
 done
-# Check that at least one .so ABI is bundled (if build was run)
+
 if ! unzip -l "$OUT" 2>/dev/null | awk 'NR>3 {print $4}' | grep -qE 'lib/(arm64-v8a|armeabi-v7a)/libclarifae\.so'; then
   echo "WARNING: no lib/<abi>/libclarifae.so found in zip. Run ./build.sh first." >&2
   MISSING=1
 fi
-# Check model weights (.zip) are present
+
 if ! unzip -l "$OUT" 2>/dev/null | awk 'NR>3 {print $4}' | grep -qE 'models/df/models/DeepFilterNet[0-9]?\.zip'; then
   echo "WARNING: DeepFilterNet model .zip files missing from models/df/models/" >&2
   MISSING=1
 fi
-# Check TFLite binary for mode 2 (DTLN, dynamically linked)
-if unzip -l "$OUT" 2>/dev/null | awk 'NR>3 {print $4}' | grep -qE 'tflite_ref/lib/(arm64-v8a|armeabi-v7a)/libtensorflowlite_c\.so'; then
-  : # present
-else
+
+if ! unzip -l "$OUT" 2>/dev/null | awk 'NR>3 {print $4}' | grep -qE 'tflite_ref/lib/(arm64-v8a|armeabi-v7a)/libtensorflowlite_c\.so'; then
   echo "WARNING: libtensorflowlite_c.so missing from zip (tflite_ref/lib/<abi>/). Mode 2 (DTLN) will crash at runtime." >&2
   MISSING=1
 fi
-# Check libdf binary for mode 3 (DeepFilterNet)
-if unzip -l "$OUT" 2>/dev/null | awk 'NR>3 {print $4}' | grep -qE 'models/df/libDF/(staging-(arm64-v8a|armeabi-v7a)|target/ndk-(arm64-v8a|armeabi-v7a)/release)/libdf\.so'; then
-  : # present
-else
-  echo "WARNING: libdf.so missing from zip (models/df/libDF/...). Mode 3 (DeepFilterNet) will fail." >&2
+
+if ! unzip -l "$OUT" 2>/dev/null | awk 'NR>3 {print $4}' | grep -qE 'models/df/libDF/staging-(arm64-v8a|armeabi-v7a)/libdf\.so'; then
+  echo "WARNING: libdf.so missing from zip (models/df/libDF/staging-...). Mode 3 (DeepFilterNet) will fail." >&2
   MISSING=1
 fi
+
 if [ "$MISSING" -ne 0 ]; then
   echo "Package audit: MISSING critical files (see warnings above)." >&2
+else
+  echo "Package audit: SUCCESS. All critical AI runtime hooks verified."
 fi
 
 echo "Flash $OUT in Magisk / KernelSU / APatch."
